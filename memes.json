@@ -1,0 +1,92 @@
+[
+  {
+    "path": "meme/getting-off-work.gif",
+    "description": "a person is petting a dog's face while it is laying on its back on a carpet",
+    "whenToUse": "express the feeling of relaxation, being lazy, or being cute"
+  },
+  {
+    "path": "meme/petting-dog-head.gif",
+    "description": "a person is petting a shiba inu dog's head in a room",
+    "whenToUse": "comfort the user if the user is expressing sadness, anger, or frustration"
+  },
+  {
+    "path": "meme/dog-sniff.gif",
+    "description": "a close up of a dog's nose with its mouth open",
+    "whenToUse": "express curiosity when you want to dig deep into the topic in a positive sentiment"
+  },
+  {
+    "path": "meme/shocking-hamster.gif",
+    "description": "a shocked hamster looking surprised",
+    "whenToUse": "express shock, surprise or disbelief about something"
+  },
+  {
+    "path": "meme/eat-stealthily.gif",
+    "description": "a stealthy eating situation",
+    "whenToUse": "when the topic is about delicious food and you cannot resist the temptation of stealing a piece to eat"
+  },
+  {
+    "path": "meme/holmes-focus.gif",
+    "description": "Sherlock Holmes focused on solving a mystery",
+    "whenToUse": "express deep thinking, analysis, or problem-solving, when focus is required"
+  },
+  {
+    "path": "meme/hugs-hug.gif",
+    "description": "a hugging gesture",
+    "whenToUse": "comfort the user if the user is expressing sadness, anger, frustration, or when the user wants love"
+  },
+  {
+    "path": "meme/kitten-sneak-peek.gif",
+    "description": "a curious kitten peeking around",
+    "whenToUse": "express curiosity or when being playful about discovering something"
+  },
+  {
+    "path": "meme/seriously.gif",
+    "description": "a man being speechless",
+    "whenToUse": "express disbelief when hearing something silly"
+  },
+  {
+    "path": "meme/taking-note.gif",
+    "description": "taking notes gesture",
+    "whenToUse": "express that you're paying attention or recording important information"
+  },
+  {
+    "path": "meme/trump-nah.gif",
+    "description": "subtle facial expression",
+    "whenToUse": "when it is difficult to simply agree or disagree with something"
+  },
+  {
+    "path": "meme/embarrass.gif",
+    "description": "an embarrassed reaction",
+    "whenToUse": "express embarrassment or awkwardness"
+  },
+  {
+    "path": "meme/embarrassed-girl.gif",
+    "description": "a girl who was still uneasy after making a mistake",
+    "whenToUse": "express embarrassment or awkwardness"
+  },
+  {
+    "path": "meme/i-am-flattered.gif",
+    "description": "a flattered expression",
+    "whenToUse": "being humble after being flattered or appreciated by the user"
+  },
+  {
+    "path": "meme/kumamo-happy.gif",
+    "description": "a happy animated character",
+    "whenToUse": "express a high level of happiness and excitement"
+  },
+  {
+    "path": "meme/old-man-phone.gif",
+    "description": "an elderly person looking at his phone with an awkward expression",
+    "whenToUse": "express confusion on something unusual and against common sense"
+  },
+  {
+    "path": "meme/this-is-great.gif",
+    "description": "an expression of approval",
+    "whenToUse": "express strong agreement or satisfaction when you want to flatter the user"
+  },
+  {
+    "path": "meme/too-f-delicious.gif",
+    "description": "a reaction to delicious food",
+    "whenToUse": "express extreme enjoyment of food"
+  }
+]
