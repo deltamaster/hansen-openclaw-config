@@ -35,7 +35,7 @@ Configured with a **Google API key** in `auth-profiles.json` (profile `google:de
 openclaw models aliases add gemini-3-flash-preview google/gemini-3-flash-preview
 ```
 
-**Default primary model** (as set in this environment): `google/gemini-3.1-flash-lite-preview` — key `agents.defaults.model.primary`.
+**Default primary model** (as set in this environment): `deepseek/deepseek-reasoner` — key `agents.defaults.model.primary`. (Previously Gemini flash-lite; switched for cost.)
 
 **Other Gemini aliases in use:** `gemini` → `google/gemini-3.1-pro-preview`, `gemini-flash-lite` → `google/gemini-3.1-flash-lite-preview`, plus `gemini-3-flash-preview` as above.
 
@@ -64,6 +64,54 @@ openclaw models aliases add deepseek-reasoner deepseek/deepseek-reasoner
 - **`deepseek/deepseek-reasoner`** — reasoning model.
 
 **Back out:** remove `deepseek:default` from `auth-profiles.json` and from `openclaw.json` `auth.profiles`; set `plugins.entries.deepseek.enabled` to `false` or remove the block; remove the two model entries / run `openclaw models aliases remove` for both aliases.
+
+### 1.3 MiniMax (Token Plan — OAuth)
+
+**Use case:** Use MiniMax billing via **[Token Plan + OpenClaw](https://platform.minimax.io/docs/token-plan/openclaw)** (browser OAuth, no API key on disk). Upstream OpenClaw docs: [MiniMax provider](https://docs.openclaw.ai/providers/minimax).
+
+**On the gateway as `openclaw`:**
+
+1. Enable the bundled MiniMax plugin and restart the gateway (or run [`scripts/enable-minimax-token-plan.sh`](./scripts/enable-minimax-token-plan.sh)).
+
+2. **Add MiniMax only (no full onboarding)** — prefer the **model** section of the config wizard ([`openclaw configure`](https://docs.openclaw.ai/cli/configure)):
+
+```bash
+openclaw configure --section model
+```
+
+In the prompts, choose **MiniMax** and **CN vs Global OAuth** (or API key). This does **not** rerun gateway install, channels, skills, or the whole quickstart.
+
+3. **Alternative — OAuth from the shell without `configure`** (still skips most of onboarding):
+
+| Region | `openclaw onboard --auth-choice …` |
+|--------|--------------------------------------|
+| **CN** | `minimax-cn-oauth` |
+| **Global** | `minimax-global-oauth` |
+
+```bash
+openclaw plugins enable minimax   # skip if already enabled
+openclaw gateway restart          # or: systemctl --user restart openclaw-gateway.service
+openclaw onboard --auth-choice minimax-cn-oauth \
+  --skip-channels --skip-skills --skip-ui --skip-health --skip-search --skip-daemon
+# Global: use minimax-global-oauth instead
+```
+
+`--skip-daemon` avoids touching systemd gateway install when it is already set up. Adjust flags if you still need a step (see `openclaw onboard --help`).
+
+Older docs mention `minimax-portal` with a region picker; current CLI uses **region-specific** `minimax-*-oauth` choices or **`configure --section model`**.
+
+4. Set the default text model if needed (examples):
+
+```bash
+openclaw models set minimax/MiniMax-M2.7
+# or: openclaw config set agents.defaults.model.primary minimax/MiniMax-M2.7
+```
+
+**Model refs:** `minimax/MiniMax-M2.7`, `minimax/MiniMax-M2.7-highspeed`; image: `minimax/image-01` (see provider doc for `imageGenerationModel`).
+
+**Alternative — API key (Anthropic-compatible):** store **`MINIMAX_API_KEY`** and configure **`models.providers.minimax`** with `baseUrl: https://api.minimax.io/anthropic`, `api: anthropic-messages`, and **`models.mode: merge`** if you keep other providers. Prefer `openclaw configure` → Model/auth → MiniMax. See [MiniMax provider](https://docs.openclaw.ai/providers/minimax).
+
+**Back out (OAuth):** remove MiniMax auth from `auth-profiles.json` / `openclaw.json` per your install; `openclaw plugins disable minimax` if you no longer want the plugin; clear `agents.defaults.model.primary` fallbacks pointing at `minimax/...` if you switch providers.
 
 ---
 
@@ -140,7 +188,7 @@ systemctl --user restart openclaw-gateway.service
 1. Install Node + global `openclaw` per [OPENCLAW-DEPLOYMENT.md](./OPENCLAW-DEPLOYMENT.md).
 2. Restore or recreate **`~/.openclaw/openclaw.json`** and **`auth-profiles.json`** (or re-run onboarding and re-add channels / keys).
 3. Re-add **model aliases** (section 1) or merge `agents.defaults.models` from a redacted backup.
-4. Re-enable **Telegram** and **plugins** (Google, DeepSeek) as needed.
+4. Re-enable **Telegram** and **plugins** (Google, DeepSeek, MiniMax Token Plan / §1.3) as needed.
 5. Run **`patch-openclaw-telegram-final-tags.sh`** (section 3).
 6. **`systemctl --user restart openclaw-gateway.service`** (and `loginctl enable-linger openclaw` if applicable).
 7. Optional: Homebrew + Himalaya — **removed** on this host (2026-03-28); reinstall with [`scripts/install-homebrew-himalaya-ubuntu.sh`](./scripts/install-homebrew-himalaya-ubuntu.sh) if needed.
@@ -158,6 +206,7 @@ systemctl --user restart openclaw-gateway.service
 | [`scripts/configure-sendmail-ubuntu.sh`](./scripts/configure-sendmail-ubuntu.sh) | Fix sendmail FQDN + systemd; localhost MTA for Himalaya ([§8](#8-sendmail-localhost-mta-for-himalaya--sendmail)); env `HOST_FQDN` / `HOST_SHORT` |
 | [`scripts/apply-hostname-de-hansenh-xyz.sh`](./scripts/apply-hostname-de-hansenh-xyz.sh) | Set **`de.hansenh.xyz`** as static hostname + hosts + mail (this deployment) |
 | [`scripts/set-plugins-allow-weixin.sh`](./scripts/set-plugins-allow-weixin.sh) | Set `plugins.allow` to `["openclaw-weixin"]` (trust Weixin plugin) |
+| [`scripts/enable-minimax-token-plan.sh`](./scripts/enable-minimax-token-plan.sh) | Enable MiniMax plugin + restart gateway; then `openclaw configure --section model` or skipped `onboard` (§1.3) |
 | [`scripts/provision-openclaw-user.sh`](./scripts/provision-openclaw-user.sh) | Server user provisioning (if used) |
 | [`scripts/dump_openclaw_memory_sqlite.py`](./scripts/dump_openclaw_memory_sqlite.py) | Inspect memory DB (optional tooling) |
 
@@ -259,3 +308,5 @@ Tencent’s **微信** plugin for OpenClaw (scan QR to log in). Docs: [npm READM
 | 2026-03-28 | **Weixin** plugin [`@tencent-weixin/openclaw-weixin`](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin), `plugins.allow`; §10. |
 | 2026-03-29 | **Telegram cron announce:** `plugins.entries.telegram.enabled: true` required for isolated job delivery (`Outbound not configured for channel: telegram` otherwise); gateway restart; §2.1. |
 | 2026-03-29 | **Daily news cron:** isolated jobs were ignoring `daily_news_aggregation` SKILL layout (newsletter style, `/tmp` footnote from old prompt). Fix: **embed the full Markdown contract + forbidden patterns in `scripts/daily-news-cron-message.txt`** and `openclaw cron edit … --message "$(cat …)"` — payload is authoritative; remove “save to `/tmp`” from the delivered instruction. |
+| 2026-03-29 | **MiniMax Token Plan:** §1.3 OAuth via `minimax-global-oauth` or `minimax-cn-oauth` (not `minimax-portal`); [`scripts/enable-minimax-token-plan.sh`](./scripts/enable-minimax-token-plan.sh); [platform](https://platform.minimax.io/docs/token-plan/openclaw), [OpenClaw MiniMax](https://docs.openclaw.ai/providers/minimax). |
+| 2026-03-29 | **MiniMax without full onboarding:** `openclaw configure --section model` or `onboard --auth-choice minimax-*-oauth` with `--skip-channels --skip-skills --skip-ui --skip-health --skip-search --skip-daemon`; §1.3. |

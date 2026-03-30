@@ -1,0 +1,70 @@
+<?php
+declare(strict_types=1);
+/** @var ContentEnhancementExtension $this */
+$applyFreshRssLabels = $this->getSystemConfigurationValue('apply_freshrss_labels');
+if ($applyFreshRssLabels === null) {
+	$applyFreshRssLabels = true;
+}
+?>
+<form action="<?= _url('extension', 'configure', 'e', $this->getName()) ?>" method="post">
+	<input type="hidden" name="_csrf" value="<?= FreshRSS_Auth::csrfToken() ?>" />
+	<div class="form-group">
+		<label class="group-name" for="enabled">Enabled</label>
+		<input type="hidden" name="enabled" value="0" />
+		<input type="checkbox" name="enabled" id="enabled" value="1" <?= $this->getSystemConfigurationValue('enabled') ? 'checked="checked"' : '' ?> />
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="api_base">API URL</label>
+		<input class="long" type="url" name="api_base" id="api_base" value="<?= htmlspecialchars(trim((string) $this->getSystemConfigurationValue('api_base', '')), ENT_COMPAT, 'UTF-8') ?>"
+			placeholder="https://…/models/…:generateContent or https://api.openai.com/v1" required />
+		<p class="help"><strong>Gemini:</strong> full <code>…:generateContent</code> URL (Google REST). <strong>OpenAI-style:</strong> <code>/v1</code> base; the extension calls <code>/v1/chat/completions</code> (MiniMax, OpenAI, DeepSeek, Ollama, …).</p>
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="api_key">API key</label>
+		<input class="long" type="password" name="api_key" id="api_key" value="" placeholder="Leave blank to keep existing key" autocomplete="off" />
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="model">Model</label>
+		<input class="long" type="text" name="model" id="model" value="<?= htmlspecialchars(trim((string) $this->getSystemConfigurationValue('model', '')), ENT_COMPAT, 'UTF-8') ?>"
+			placeholder="gemini-3.1-flash-lite-preview" />
+		<p class="help">Required for OpenAI-style endpoints. For a full Gemini <code>generateContent</code> URL, optional (used for logs; the URL already names the model).</p>
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="min_quality">Minimum quality (1–10)</label>
+		<input type="number" name="min_quality" id="min_quality" min="1" max="10" value="<?= (int) $this->getSystemConfigurationValue('min_quality', 4) ?>" />
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="mark_low_quality_read">Mark below threshold as read</label>
+		<input type="hidden" name="mark_low_quality_read" value="0" />
+		<input type="checkbox" name="mark_low_quality_read" id="mark_low_quality_read" value="1" <?= $this->getSystemConfigurationValue('mark_low_quality_read') ? 'checked="checked"' : '' ?> />
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="discard_below_threshold">Discard entry (do not insert) if below threshold</label>
+		<input type="hidden" name="discard_below_threshold" value="0" />
+		<input type="checkbox" name="discard_below_threshold" id="discard_below_threshold" value="1" <?= $this->getSystemConfigurationValue('discard_below_threshold') ? 'checked="checked"' : '' ?> />
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="apply_freshrss_labels">Apply LLM labels as FreshRSS user labels</label>
+		<input type="hidden" name="apply_freshrss_labels" value="0" />
+		<input type="checkbox" name="apply_freshrss_labels" id="apply_freshrss_labels" value="1" <?= $applyFreshRssLabels ? 'checked="checked"' : '' ?> />
+		<p class="help">Creates labels (if needed) and tags each article with the model’s <code>labels</code> (e.g. Propaganda, Low Quality) when the article is first shown. You do not need to pre-create labels.</p>
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="system_prompt">System prompt (JSON contract)</label>
+		<textarea name="system_prompt" id="system_prompt" rows="12" class="w100"><?= htmlspecialchars(ContentEnhancement_Processor::normalizeSystemPrompt((string) $this->getSystemConfigurationValue('system_prompt', '')), ENT_COMPAT, 'UTF-8') ?></textarea>
+		<p class="help">Stricter default scoring (low marks for slogan/learning fluff with no new facts) ships with the extension. To reload it, clear this box completely and click Submit.</p>
+	</div>
+
+	<div class="form-group form-actions">
+		<button type="submit" class="btn btn-important">Submit</button>
+		<button type="reset" class="btn">Reset</button>
+	</div>
+</form>

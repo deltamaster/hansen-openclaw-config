@@ -35,3 +35,7 @@ desktop.ini
 *.log
 .tmp/
 temp/
+
+# Browser "Save Page As" artifacts (third-party bundles; GitHub push protection may flag embedded tokens)
+refreshrss_content_enhancement/**/*_files/
+refreshrss_content_enhancement/*.html

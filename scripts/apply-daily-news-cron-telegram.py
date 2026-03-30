@@ -21,6 +21,8 @@ def main() -> None:
             "telegram",
             "--to",
             "7046769291",
+            "--model",
+            "deepseek/deepseek-reasoner",
             "--enable",
         ],
         check=True,

@@ -1,0 +1,31 @@
+# Local FreshRSS + bind-mounted plugin (edit on disk, refresh in container).
+# Usage (from this directory): docker compose up -d
+# UI: http://127.0.0.1:8081/
+# First run: complete the web installer (SQLite is fine for dev).
+#
+# Image via dockerproxy.net (Docker Hub mirror) — avoids direct registry-1.docker.io pulls.
+#
+# Egress via host SOCKS5 (local dev only): socks5h://host.docker.internal:1080 — not 127.0.0.1 (that is inside the container).
+
+services:
+  freshrss:
+    image: dockerproxy.net/freshrss/freshrss:latest
+    container_name: freshrss-local
+    hostname: freshrss-local
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:8081:80"
+    volumes:
+      - freshrss_data:/var/www/FreshRSS/data
+      - ./xExtension-ContentEnhancement:/var/www/FreshRSS/extensions/xExtension-ContentEnhancement
+    environment:
+      TZ: UTC
+      CRON_MIN: "5,35"
+      ALL_PROXY: socks5h://host.docker.internal:1080
+      HTTP_PROXY: socks5h://host.docker.internal:1080
+      HTTPS_PROXY: socks5h://host.docker.internal:1080
+      NO_PROXY: localhost,127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16
+
+volumes:
+  freshrss_data:

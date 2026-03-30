@@ -1,0 +1,8 @@
+{
+	"name": "ContentEnhancement",
+	"author": "Your Name",
+	"description": "Fetch article text, summarize with an LLM (JSON), enrich entry attributes, optional quality filter. See readme in repo.",
+	"version": "0.1.0",
+	"entrypoint": "ContentEnhancement",
+	"type": "system"
+}
