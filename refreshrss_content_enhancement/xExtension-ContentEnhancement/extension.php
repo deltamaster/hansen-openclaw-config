@@ -108,10 +108,11 @@ final class ContentEnhancementExtension extends Minz_Extension
 				'api_key' => '',
 				'model' => 'gemini-3.1-flash-lite-preview',
 				'min_quality' => 4,
+				'prefilter_before_fetch' => true,
 				'mark_low_quality_read' => true,
 				'discard_below_threshold' => false,
 				'apply_freshrss_labels' => true,
-				'system_prompt' => ContentEnhancement_Processor::defaultSystemPrompt(),
+				'system_prompt' => ContentEnhancement_Processor::defaultScoringCriteria(),
 			]);
 			return true;
 		}
@@ -143,10 +144,11 @@ final class ContentEnhancementExtension extends Minz_Extension
 				'api_key' => $apiKey,
 				'model' => trim((string) Minz_Request::param('model', '')),
 				'min_quality' => (int) Minz_Request::param('min_quality', 4),
+				'prefilter_before_fetch' => Minz_Request::param('prefilter_before_fetch') === '1',
 				'mark_low_quality_read' => Minz_Request::param('mark_low_quality_read') === '1',
 				'discard_below_threshold' => Minz_Request::param('discard_below_threshold') === '1',
 				'apply_freshrss_labels' => Minz_Request::param('apply_freshrss_labels') === '1',
-				'system_prompt' => ContentEnhancement_Processor::normalizeSystemPrompt((string) Minz_Request::param('system_prompt', '')),
+				'system_prompt' => ContentEnhancement_Processor::normalizeScoringCriteria((string) Minz_Request::param('system_prompt', '')),
 			]);
 			Minz_Request::good(_t('gen.action.done'));
 		}

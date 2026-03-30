@@ -1,0 +1,24 @@
+{
+  "SSHHost": "openclaw@178.104.115.113",
+  "KeyPath": "",
+  "SSHExecutable": "ssh",
+  "Forwards": [
+    {
+      "LocalPort": 18789,
+      "RemoteHost": "127.0.0.1",
+      "RemotePort": 18789,
+      "Comment": "OpenClaw gateway (remote loopback 18789)"
+    },
+    {
+      "LocalPort": 8080,
+      "RemoteHost": "127.0.0.1",
+      "RemotePort": 8080,
+      "Comment": "FreshRSS (remote loopback 8080)"
+    }
+  ],
+  "ServerAliveIntervalSeconds": 30,
+  "ServerAliveCountMax": 3,
+  "ReconnectInitialDelaySeconds": 5,
+  "ReconnectMaxDelaySeconds": 120,
+  "LogPath": ""
+}

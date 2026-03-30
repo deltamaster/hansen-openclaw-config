@@ -34,8 +34,15 @@ if ($applyFreshRssLabels === null) {
 	</div>
 
 	<div class="form-group">
-		<label class="group-name" for="min_quality">Minimum quality (1–10)</label>
+		<label class="group-name" for="min_quality">Minimum relevance score (1–10)</label>
 		<input type="number" name="min_quality" id="min_quality" min="1" max="10" value="<?= (int) $this->getSystemConfigurationValue('min_quality', 4) ?>" />
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="prefilter_before_fetch">Prefilter (title + RSS only, before fetch)</label>
+		<input type="hidden" name="prefilter_before_fetch" value="0" />
+		<input type="checkbox" name="prefilter_before_fetch" id="prefilter_before_fetch" value="1" <?= ($this->getSystemConfigurationValue('prefilter_before_fetch') ?? true) ? 'checked="checked"' : '' ?> />
+		<p class="help">Cheap pass on title + RSS only (no fetch). Fixed English prefilter instructions in code + your scoring criteria below. If <code>relevance_score</code> is strictly below <code>min_quality − 1</code>, skips fetch and full enhancement: with “Discard below threshold” on, the entry is not inserted; otherwise the raw RSS item is kept. On prefilter API failure, falls back to the full pipeline.</p>
 	</div>
 
 	<div class="form-group">
@@ -58,9 +65,9 @@ if ($applyFreshRssLabels === null) {
 	</div>
 
 	<div class="form-group">
-		<label class="group-name" for="system_prompt">System prompt (JSON contract)</label>
-		<textarea name="system_prompt" id="system_prompt" rows="12" class="w100"><?= htmlspecialchars(ContentEnhancement_Processor::normalizeSystemPrompt((string) $this->getSystemConfigurationValue('system_prompt', '')), ENT_COMPAT, 'UTF-8') ?></textarea>
-		<p class="help">Stricter default scoring (low marks for slogan/learning fluff with no new facts) ships with the extension. To reload it, clear this box completely and click Submit.</p>
+		<label class="group-name" for="system_prompt">Scoring criteria (shared)</label>
+		<textarea name="system_prompt" id="system_prompt" rows="10" class="w100"><?= htmlspecialchars(ContentEnhancement_Processor::normalizeScoringCriteria((string) $this->getSystemConfigurationValue('system_prompt', '')), ENT_COMPAT, 'UTF-8') ?></textarea>
+		<p class="help">Defines relevance_score bands, low-score rules, and label meanings. Appended after fixed English structure instructions (prefilter and full-scan are built into the extension). Clear and Submit to restore the default scoring text.</p>
 	</div>
 
 	<div class="form-group form-actions">

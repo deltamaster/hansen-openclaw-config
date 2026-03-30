@@ -13,21 +13,21 @@ I am building a FreshRSS plugin to process incoming RSS entries (specifically su
    - Send the extracted text to an LLM API (e.g., OpenAI, DeepSeek, or a local Ollama instance).
    - **Task for LLM:** 
      - Generate a concise summary (approx. 100-150 words in Chinese).
-     - Assign a quality score (1-10).
+     - Assign a **relevance_score** (1–10): combines objective information value and subjective interest (tune via system prompt).
      - Detect specific categories: "Advertisement", "Propaganda", "Clickbait", "Low Quality".
    - **Response Format:** Expect a structured JSON response.
 4. **Data Enrichment:** 
    - Replace the original entry summary/content with the LLM-generated summary.
-   - Store metadata (quality score, tags) in the `$entry->attributes()` array.
-   - If the quality score is below a certain threshold (configurable), mark the entry as read or discard it.
+   - Store metadata (`relevance_score`, tags) in the `$entry->attributes()` array.
+   - If **relevance_score** is below a certain threshold (configurable), mark the entry as read or discard it.
 
  **Technical Requirements:** 
 - **Language:** PHP (FreshRSS standard).
 - **Configuration UI:** The plugin should have a settings page in the FreshRSS admin panel to configure:
   - LLM API Endpoint & API Key.
   - Model Name (e.g., `gpt-4o`, `deepseek-chat`).
-  - Minimum quality threshold for filtering.
-  - Prompt customization for the LLM.
+  - Minimum relevance score threshold for filtering.
+  - Scoring criteria (shared `relevance_score` rubric) plus separate structure prompts for prefilter vs full scan.
 - **Error Handling:** Graceful degradation if the API is down or the scraper fails (keep the original entry in such cases).
 - **Logging:** Log API latency and extraction status for debugging purposes.
 
@@ -48,7 +48,7 @@ The extension skeleton lives under **`xExtension-ContentEnhancement/`**:
 | `metadata.json` | Extension identity (`type: system`, admin-wide settings). |
 | `extension.php` | Registers `Minz_HookType::EntryBeforeInsert`, install defaults, configure handler. |
 | `Processor.php` | URL resolve + fetch + stub text extraction + OpenAI-compatible `/chat/completions` JSON + `_attribute()` metadata. |
-| `configure.phtml` | Admin form (API base, key, model, thresholds, prompt). |
+| `configure.phtml` | Admin form: API, thresholds, shared **scoring criteria** (prefilter/full structure prompts are fixed English strings in `Processor.php`). |
 
 **Install:** copy `xExtension-ContentEnhancement` into your FreshRSS tree as `FreshRSS/extensions/xExtension-ContentEnhancement`, then enable **ContentEnhancement** under Administration → Extensions → System, open **configuration**, set API base/key/model, enable.
 

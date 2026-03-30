@@ -1,0 +1,8 @@
+# Optional: merge for dev without SOCKS (Windows / no local proxy).
+# Usage: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+services:
+  freshrss:
+    environment:
+      ALL_PROXY: ""
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""

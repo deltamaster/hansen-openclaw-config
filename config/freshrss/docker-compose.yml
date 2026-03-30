@@ -1,5 +1,6 @@
 # FreshRSS — https://github.com/FreshRSS/FreshRSS
 # Run on host: cd config/freshrss && docker compose up -d
+# Optional SOCKS proxy for container egress: merge docker-compose.proxy.yml (see that file).
 # Web UI (this file binds loopback only): http://127.0.0.1:8080/
 # Remote: ssh -L 8080:127.0.0.1:8080 openclaw@<host>
 #

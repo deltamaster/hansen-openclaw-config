@@ -30,41 +30,72 @@ final class ContentEnhancement_Processor
 	/** Expected JSON shape from the LLM (OpenAI `response_format: json_object` friendly). */
 	private const JSON_SCHEMA_HINT = <<<'TXT'
 {
-  "summary_zh": "（约100–150字，据正文独立撰写）",
-  "quality_score": 2,
+  "summary_zh": "(~100–150 Chinese characters, independent summary from the body)",
+  "relevance_score": 2,
   "labels": ["Propaganda", "Low Quality"]
 }
 TXT;
 
 	/** Example summary line from {@see JSON_SCHEMA_HINT}; models often echo this as the first `{...}` block. */
-	private const SCHEMA_PLACEHOLDER_SUMMARY = '约100-150字的中文摘要';
+	private const SCHEMA_PLACEHOLDER_SUMMARY = 'Chinese summary ~100-150 chars from body';
 
+	/** Shared relevance rubric + label definitions (used by prefilter and full-scan). Config key: `system_prompt`. */
+	public static function defaultScoringCriteria(): string
+	{
+		return "你是新闻与阅读**相关性**评估助手：输出字段 **relevance_score**（1–10）表示该条对读者的**综合相关度**。请把「客观信息价值 / 稿件质量」与「主观上是否值得读」放在**同一分数**里：低信息密度的通稿、宣传口号稿打低分；对你认为读者会关心、信息清晰或话题重要的条目打高分。可在下文补充个人偏好（例如不感兴趣的话题打低分）。必须**严格**打分：宣传稿、无新事实的通稿通常 **1–3**，并打上 Propaganda / Low Quality（若适用）。\n\n"
+			. "【relevance_score 校准（必须遵守）】\n"
+			. "- **1–3**：几乎无独立新闻价值或对你设定的读者几乎不值得读。典型：意识形态学习/表态稿；无新事实、无新数据的通稿；仅复述会议精神、政策口号；官样活动报道无实质信息。\n"
+			. "- **4–5**：信息稀薄、明显片面，或宣传为主但夹杂少量可核实信息；或话题边缘、兴趣低。\n"
+			. "- **6–7**：有可核实的事件要素或一定阅读价值，但深度或吸引力一般。\n"
+			. "- **8–9**：事实清楚，有数据、背景、多方信息或明确新闻点；或高度符合读者兴趣。\n"
+			. "- **10**：极少使用；深度调查、重大独家、高信息密度或对你定义的读者极具相关性的报道。\n\n"
+			. "【低分强制规则】若标题或正文明显属于「学习」「领会」「政绩观教育」等套话类，且**没有**可独立核实的事实增量，则 relevance_score **不得高于 3**，且 labels 应包含 **Propaganda** 与 **Low Quality**。\n\n"
+			. "【labels】仅从以下选项中选确实匹配的（可多项）：Advertisement、Propaganda、Clickbait、Low Quality。空洞口号、无营养学习稿应标 **Propaganda** 与 **Low Quality**。\n";
+	}
+
+	/**
+	 * Fixed English instructions: prefilter pass (title + RSS only, relevance_score JSON only). Not user-configurable.
+	 */
+	private static function prefilterStructurePrompt(): string
+	{
+		return <<<'TXT'
+[Prefilter — input and output]
+- The user message contains only the article title and RSS summary/snippet. There is no fetched web page body. Estimate relevance_score; when the signal is thin, infer conservatively and use the same scoring scale as for a full article.
+- Output exactly one JSON object: {"relevance_score": <integer 1–10>}. Do not output summary_zh, labels, or any other fields.
+- No Markdown code fences, no explanatory text outside JSON.
+TXT;
+	}
+
+	/**
+	 * Fixed English instructions: full analysis (body + summary_zh + labels JSON). Not user-configurable.
+	 */
+	private static function fullscanStructurePrompt(): string
+	{
+		return "[Full analysis — input and output]\n"
+			. "The user message includes the title and the article body as plain text extracted from the page (or RSS snippet when the article is unavailable). Write the Chinese summary and score per the rubric below.\n\n"
+			. "Output one JSON object with exactly these fields:\n"
+			. self::JSON_SCHEMA_HINT . "\n"
+			. "Use [] for labels when none apply. summary_zh must be about 100–150 Chinese characters, written from the body, not copied from examples.\n"
+			. "Emit only one JSON object. No Markdown fences, no extra text before or after.\n"
+			. "Do not output chain-of-thought, filler, or tags like `<think>` / `</think>`; the response must start with `{`.\n";
+	}
+
+	/** @deprecated Use {@see defaultScoringCriteria()} */
 	public static function defaultSystemPrompt(): string
 	{
-		return "你是新闻与网页**质量评估**助手，必须**严格、冷峻**地打分。对宣传稿、口号稿、学习体会类、无新事实的通稿，必须给 **1–3 分**，并打上 Propaganda / Low Quality（若适用）。不要因来源或题材而“客气”地抬高分数。\n\n"
-			. "【quality_score 校准（必须遵守）】\n"
-			. "- **1–3**：几乎无独立新闻价值。典型：意识形态学习/表态稿（标题常含「学习」「天天学习」「学习卡」「知行」「学习时节」等）；总书记考察/讲话通稿但**无新事实、无新数据、无独立信息**；仅复述会议精神、政策口号；官样活动报道无实质信息。\n"
-			. "- **4–5**：信息稀薄、明显片面，或宣传为主但夹杂少量可核实信息。\n"
-			. "- **6–7**：有可核实的事件要素，但深度与一般价值有限。\n"
-			. "- **8–9**：事实清楚，有数据、背景、多方信息或明确新闻点。\n"
-			. "- **10**：极少使用；仅适用于深度调查、重大独家或高信息密度报道。\n\n"
-			. "【低分强制规则】若标题或正文明显属于「学习」「领会」「政绩观教育」等套话类，且**没有**可独立核实的事实增量，则 quality_score **不得高于 3**，且 labels 应包含 **Propaganda** 与 **Low Quality**。\n\n"
-			. "【labels】仅从以下选项中选确实匹配的（可多项）：Advertisement、Propaganda、Clickbait、Low Quality。空洞口号、无营养学习稿应标 **Propaganda** 与 **Low Quality**。\n\n"
-			. "输出 JSON 对象，字段如下：\n"
-			. self::JSON_SCHEMA_HINT . "\n"
-			. "labels 无匹配则返回 []。summary_zh 为约100–150字中文摘要，**必须**据正文独立撰写，不得复制示例句子。\n"
-			. "只输出一段 JSON，不要 Markdown 代码块，不要附加解释文字。\n"
-			. "**禁止**输出思考过程、英文说明、`<think>` / `</think>` 等标签；响应必须以 `{` 开头的纯 JSON。";
+		return self::defaultScoringCriteria() . "\n\n" . self::fullscanStructurePrompt();
 	}
 
 	/**
 	 * Undo layered HTML entity encoding (e.g. &amp;amp;quot;) from repeated textarea round-trips.
+	 *
+	 * @param string $prompt Shared scoring criteria (`system_prompt`).
 	 */
-	public static function normalizeSystemPrompt(string $prompt): string
+	public static function normalizeScoringCriteria(string $prompt): string
 	{
 		$prompt = trim($prompt);
 		if ($prompt === '') {
-			return self::defaultSystemPrompt();
+			return self::defaultScoringCriteria();
 		}
 		$prev = '';
 		$guard = 0;
@@ -73,7 +104,39 @@ TXT;
 			$prompt = html_entity_decode($prompt, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 			$guard++;
 		}
+
 		return $prompt;
+	}
+
+	/** @deprecated Use {@see normalizeScoringCriteria()} */
+	public static function normalizeSystemPrompt(string $prompt): string
+	{
+		return self::normalizeScoringCriteria($prompt);
+	}
+
+	/**
+	 * Assembled system message: structure (prefilter) first, then shared scoring criteria.
+	 */
+	private static function buildPrefilterSystemPrompt(string $structure, string $scoring): string
+	{
+		return self::capSystemInstruction(trim($structure) . "\n\n" . trim($scoring));
+	}
+
+	/**
+	 * Assembled system message: structure (full scan) first, then shared scoring criteria.
+	 */
+	private static function buildFullscanSystemPrompt(string $structure, string $scoring): string
+	{
+		return self::capSystemInstruction(trim($structure) . "\n\n" . trim($scoring));
+	}
+
+	private static function capSystemInstruction(string $combined, int $max = 120000): string
+	{
+		if (mb_strlen($combined, 'UTF-8') <= $max) {
+			return $combined;
+		}
+
+		return mb_substr($combined, 0, $max, 'UTF-8') . "\n\n[… system instruction truncated …]";
 	}
 
 	public static function process(FreshRSS_Entry $entry, ContentEnhancementExtension $ext): ?FreshRSS_Entry
@@ -85,14 +148,127 @@ TXT;
 		$minQ = (int) $ext->getSystemConfigurationValue('min_quality');
 		$markRead = (bool) $ext->getSystemConfigurationValue('mark_low_quality_read');
 		$discard = (bool) $ext->getSystemConfigurationValue('discard_below_threshold');
-		$system = self::normalizeSystemPrompt((string) $ext->getSystemConfigurationValue('system_prompt'));
+		$scoring = self::normalizeScoringCriteria((string) $ext->getSystemConfigurationValue('system_prompt', ''));
+		$prefilterStructure = self::prefilterStructurePrompt();
+		$fullscanStructure = self::fullscanStructurePrompt();
+		$fullSystem = self::buildFullscanSystemPrompt($fullscanStructure, $scoring);
+		$prefilterSystem = self::buildPrefilterSystemPrompt($prefilterStructure, $scoring);
 
 		if ($base === '' || $key === '' || (!self::isGeminiGenerateContentUrl($base) && $model === '')) {
-			Minz_Log::warning('ContentEnhancement: missing API configuration; skipping entry.');
+			$modelForLog = '-';
+			if ($model !== '') {
+				$modelForLog = $model;
+			} elseif ($base !== '' && self::isGeminiGenerateContentUrl($base)) {
+				$modelForLog = self::geminiModelIdFromUrl($base);
+			}
+			Minz_Log::warning(self::formatContentEnhancementLogLine(
+				'fullscan',
+				'error',
+				$entry,
+				null,
+				0,
+				$modelForLog,
+				null,
+				null,
+				'config_missing',
+				'Set api_base, api_key, and model (for OpenAI-style endpoints).',
+			));
+
 			return $entry;
 		}
 
 		$modelLabel = $model !== '' ? $model : self::geminiModelIdFromUrl($base);
+
+		$prefilterEnabled = $ext->getSystemConfigurationValue('prefilter_before_fetch');
+		if ($prefilterEnabled === null) {
+			$prefilterEnabled = true;
+		} else {
+			$prefilterEnabled = (bool) $prefilterEnabled;
+		}
+
+		$rssPlainForPrefilter = self::plainTextFromRssEntry($entry);
+		$rssPlainForPrefilter = mb_substr($rssPlainForPrefilter, 0, 4000, 'UTF-8');
+
+		if ($prefilterEnabled) {
+			$pre = self::callLlmRelevancePrefilter($base, $key, $model, $entry->title(), $rssPlainForPrefilter, $prefilterSystem);
+			if ($pre === null) {
+				Minz_Log::warning(self::formatContentEnhancementLogLine(
+					'prefilter',
+					'error',
+					$entry,
+					null,
+					(int) round((microtime(true) - $t0) * 1000),
+					$modelLabel,
+					null,
+					null,
+					'prefilter_failed',
+					self::$lastLlmFailureDetail !== '' ? self::$lastLlmFailureDetail : 'unknown',
+				));
+			} else {
+				$rel = (int) ($pre['relevance_score'] ?? 0);
+				$latencyP = (int) round((microtime(true) - $t0) * 1000);
+				$preUsage = self::popLlmUsageFromResult($pre);
+				$cutoffScore = $minQ - 1;
+				if ($rel < $cutoffScore) {
+					$commonMeta = [
+						'relevance_score' => $rel,
+						'cutoff_score' => $cutoffScore,
+						'min_quality' => $minQ,
+						'latency_ms' => $latencyP,
+						'model' => $modelLabel,
+					];
+					if ($preUsage !== null) {
+						$commonMeta['llm_usage_prefilter'] = $preUsage;
+					}
+					if ($discard) {
+						self::setMeta($entry, array_merge($commonMeta, ['status' => 'prefilter_drop']));
+						Minz_Log::warning(self::formatContentEnhancementLogLine(
+							'prefilter',
+							'drop',
+							$entry,
+							$rel,
+							$latencyP,
+							$modelLabel,
+							$preUsage,
+							null,
+							null,
+							null,
+							'cutoff=' . $cutoffScore . ' min_quality=' . $minQ,
+						));
+
+						return null;
+					}
+					self::setMeta($entry, array_merge($commonMeta, ['status' => 'prefilter_skip_enhance']));
+					Minz_Log::warning(self::formatContentEnhancementLogLine(
+						'prefilter',
+						'keep',
+						$entry,
+						$rel,
+						$latencyP,
+						$modelLabel,
+						$preUsage,
+						null,
+						null,
+						null,
+						'cutoff=' . $cutoffScore . ' min_quality=' . $minQ . ' skip_enhance=1',
+					));
+
+					return $entry;
+				}
+				Minz_Log::warning(self::formatContentEnhancementLogLine(
+					'prefilter',
+					'proceed',
+					$entry,
+					$rel,
+					$latencyP,
+					$modelLabel,
+					$preUsage,
+					null,
+					null,
+					null,
+				));
+			}
+		}
 
 		$link = $entry->link();
 		$resolved = self::resolveUrl($link);
@@ -112,7 +288,7 @@ TXT;
 					$base,
 					$key,
 					$model,
-					$system,
+					$fullSystem,
 					$minQ,
 					$markRead,
 					$discard,
@@ -127,10 +303,19 @@ TXT;
 				'failure_reason' => self::$lastFetchFailureDetail,
 				'fetch_http_code' => $http,
 			]);
-			Minz_Log::warning(
-				'ContentEnhancement: fetch_failed — ' . self::logEntryLabel($entry) . ' url=' . $resolved
-				. ' latency_ms=' . $latency . ' reason=' . (self::$lastFetchFailureDetail !== '' ? self::$lastFetchFailureDetail : 'unknown'),
-			);
+			Minz_Log::warning(self::formatContentEnhancementLogLine(
+				'fullscan',
+				'error',
+				$entry,
+				null,
+				$latency,
+				$modelLabel,
+				null,
+				null,
+				'fetch_failed',
+				self::$lastFetchFailureDetail !== '' ? self::$lastFetchFailureDetail : 'unknown',
+				'url=' . self::logSnippet($resolved, 500),
+			));
 			return $entry;
 		}
 
@@ -142,7 +327,19 @@ TXT;
 				'source_url' => $resolved,
 				'latency_ms' => $latency,
 			]);
-			Minz_Log::warning('ContentEnhancement: extract_empty — ' . self::logEntryLabel($entry) . ' url=' . $resolved . ' latency_ms=' . $latency);
+			Minz_Log::warning(self::formatContentEnhancementLogLine(
+				'fullscan',
+				'error',
+				$entry,
+				null,
+				$latency,
+				$modelLabel,
+				null,
+				null,
+				'extract_empty',
+				'no readable text extracted',
+				'url=' . self::logSnippet($resolved, 500),
+			));
 			return $entry;
 		}
 
@@ -156,7 +353,7 @@ TXT;
 			$base,
 			$key,
 			$model,
-			$system,
+			$fullSystem,
 			$plain,
 			$entry->title(),
 		);
@@ -175,12 +372,23 @@ TXT;
 				'failure_reason' => self::$lastLlmFailureDetail,
 			]);
 			$reason = self::$lastLlmFailureDetail !== '' ? self::$lastLlmFailureDetail : 'unknown (no detail recorded)';
-			Minz_Log::warning('ContentEnhancement: llm_failed — ' . self::logEntryLabel($entry) . ' latency_ms=' . $latency . ' reason=' . $reason);
+			Minz_Log::warning(self::formatContentEnhancementLogLine(
+				'fullscan',
+				'error',
+				$entry,
+				null,
+				$latency,
+				$modelLabel,
+				null,
+				null,
+				'llm_failed',
+				$reason,
+			));
 			return $entry;
 		}
 
 		$summary = trim((string) ($llm['summary_zh'] ?? ''));
-		$score = (int) ($llm['quality_score'] ?? 0);
+		$score = self::relevanceScoreFromFullPassLlm($llm);
 		$labels = $llm['labels'] ?? [];
 		if (!is_array($labels)) {
 			$labels = [];
@@ -192,7 +400,7 @@ TXT;
 		$okMeta = [
 			'status' => 'ok',
 			'source_url' => $resolved,
-			'quality_score' => $score,
+			'relevance_score' => $score,
 			'labels' => array_values(array_filter(array_map('strval', $labels))),
 			'latency_ms' => $latency,
 			'model' => $modelLabel,
@@ -203,13 +411,28 @@ TXT;
 		self::setMeta($entry, $okMeta);
 
 		$summarySnippet = mb_substr(preg_replace('/\s+/u', ' ', $summary) ?? '', 0, 120, 'UTF-8');
-		Minz_Log::warning(
-			'ContentEnhancement: ok — ' . self::logEntryLabel($entry)
-			. ' source_url=' . self::logSnippet($resolved, 500)
-			. ' score=' . $score . ' latency_ms=' . $latency . ' model=' . $modelLabel
-			. self::formatLlmUsageForLog($llmUsage)
-			. ' summary="' . $summarySnippet . (mb_strlen($summary, 'UTF-8') > 120 ? '…' : '') . '"',
-		);
+		if (mb_strlen($summary, 'UTF-8') > 120) {
+			$summarySnippet .= '…';
+		}
+
+		$decision = 'proceed';
+		if ($score > 0 && $score < $minQ) {
+			$decision = $discard ? 'drop' : 'keep';
+		}
+
+		Minz_Log::warning(self::formatContentEnhancementLogLine(
+			'fullscan',
+			$decision,
+			$entry,
+			$score,
+			$latency,
+			$modelLabel,
+			$llmUsage,
+			$summarySnippet,
+			null,
+			null,
+			'source_url=' . self::logSnippet($resolved, 500),
+		));
 
 		if ($score > 0 && $score < $minQ) {
 			if ($discard) {
@@ -221,6 +444,38 @@ TXT;
 		}
 
 		return $entry;
+	}
+
+	/**
+	 * Full-pass LLM JSON uses relevance_score (quality + subjective interest in one number). Legacy quality_score is still accepted.
+	 *
+	 * @param array<string,mixed> $llm
+	 */
+	private static function relevanceScoreFromFullPassLlm(array $llm): int
+	{
+		if (isset($llm['relevance_score'])) {
+			return (int) $llm['relevance_score'];
+		}
+		if (isset($llm['quality_score'])) {
+			return (int) $llm['quality_score'];
+		}
+
+		return 0;
+	}
+
+	/**
+	 * Normalize parsed assistant JSON: prefer relevance_score; map legacy quality_score if present.
+	 *
+	 * @param array<string,mixed> $j
+	 * @return array<string,mixed>
+	 */
+	private static function normalizeFullPassAssistantJson(array $j): array
+	{
+		if (!isset($j['relevance_score']) && isset($j['quality_score'])) {
+			$j['relevance_score'] = $j['quality_score'];
+		}
+
+		return $j;
 	}
 
 	/**
@@ -243,7 +498,7 @@ TXT;
 		$rssPlain = self::plainTextFromRssEntry($entry);
 		$blockedPreamble = "【目标页面返回 HTTP {$http}，无法抓取正文；以下为 RSS 中的摘要/片段（若有）】\n\n";
 		$plainForLlm = $blockedPreamble . ($rssPlain !== '' ? $rssPlain : '（无 RSS 摘要，请主要依据标题。）');
-		$systemBlocked = $system . "\n\n【本次特殊】网页正文无法抓取（HTTP {$http}，站点通常限制自动访问）。请仅依据用户消息中的标题与 RSS 片段撰写 summary_zh；**quality_score 必须为 9 或 10**（用户订阅源可信）；labels 一般为 []，除非标题明显是广告或垃圾信息。";
+		$systemBlocked = $system . "\n\n【本次特殊】网页正文无法抓取（HTTP {$http}，站点通常限制自动访问）。请仅依据用户消息中的标题与 RSS 片段撰写 summary_zh；**relevance_score 必须为 9 或 10**（用户订阅源可信）；labels 一般为 []，除非标题明显是广告或垃圾信息。";
 
 		$originalContent = $entry->content(false);
 		if (!$entry->hasAttribute('original_content')) {
@@ -272,7 +527,7 @@ TXT;
 			self::setMeta($entry, [
 				'status' => 'ok',
 				'source_url' => $resolved,
-				'quality_score' => $score,
+				'relevance_score' => $score,
 				'labels' => $labels,
 				'latency_ms' => $latency,
 				'model' => $modelLabel,
@@ -284,7 +539,8 @@ TXT;
 			if ($summary === '') {
 				$summary = '无法抓取原文（HTTP ' . $http . '）。标题：' . trim($entry->title());
 			}
-			$score = max(9, min(10, (int) ($llm['quality_score'] ?? 9)));
+			$rawRel = self::relevanceScoreFromFullPassLlm($llm);
+			$score = $rawRel > 0 ? max(9, min(10, $rawRel)) : 9;
 			$labels = $llm['labels'] ?? [];
 			if (!is_array($labels)) {
 				$labels = [];
@@ -296,7 +552,7 @@ TXT;
 			$blockedOkMeta = [
 				'status' => 'ok',
 				'source_url' => $resolved,
-				'quality_score' => $score,
+				'relevance_score' => $score,
 				'labels' => array_values(array_filter($labels, static fn($s) => trim((string) $s) !== '')),
 				'latency_ms' => $latency,
 				'model' => $modelLabel,
@@ -311,14 +567,28 @@ TXT;
 		$entry->_content('<p>' . htmlspecialchars($summary, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>');
 
 		$summarySnippet = mb_substr(preg_replace('/\s+/u', ' ', $summary) ?? '', 0, 120, 'UTF-8');
-		Minz_Log::warning(
-			'ContentEnhancement: ok — ' . self::logEntryLabel($entry)
-			. ' source_url=' . self::logSnippet($resolved, 500)
-			. ' fetch_blocked_http=' . $http
-			. ' score=' . $score . ' latency_ms=' . $latency . ' model=' . $modelLabel
-			. self::formatLlmUsageForLog($llmUsage)
-			. ' summary="' . $summarySnippet . (mb_strlen($summary, 'UTF-8') > 120 ? '…' : '') . '"',
-		);
+		if (mb_strlen($summary, 'UTF-8') > 120) {
+			$summarySnippet .= '…';
+		}
+
+		$decision = 'proceed';
+		if ($score > 0 && $score < $minQ) {
+			$decision = $discard ? 'drop' : 'keep';
+		}
+
+		Minz_Log::warning(self::formatContentEnhancementLogLine(
+			'fullscan',
+			$decision,
+			$entry,
+			$score,
+			$latency,
+			$modelLabel,
+			$llmUsage,
+			$summarySnippet,
+			null,
+			null,
+			'fetch_blocked_http=' . $http . ' source_url=' . self::logSnippet($resolved, 500),
+		));
 
 		if ($score > 0 && $score < $minQ) {
 			if ($discard) {
@@ -350,6 +620,84 @@ TXT;
 		$t = trim($entry->title());
 		$t = $t === '' ? '(no title)' : mb_substr($t, 0, 80, 'UTF-8') . (mb_strlen($t, 'UTF-8') > 80 ? '…' : '');
 		return 'title="' . $t . '" link=' . $entry->link();
+	}
+
+	/**
+	 * One-line structured log for grep/ETL: action, decision, fields, optional summary, optional [error: …].
+	 *
+	 * @param 'prefilter'|'fullscan' $action
+	 * @param 'drop'|'proceed'|'keep'|'error' $decision
+	 * @param array<string,int>|null $usage LLM usage or null
+	 */
+	private static function formatContentEnhancementLogLine(
+		string $action,
+		string $decision,
+		FreshRSS_Entry $entry,
+		?int $relevanceScore,
+		int $latencyMs,
+		string $model,
+		?array $usage,
+		?string $summarySnippet = null,
+		?string $errorCode = null,
+		?string $errorMessage = null,
+		?string $extraBeforeSummary = null,
+	): string {
+		$title = self::escapeLogTitleForQuotes($entry->title());
+		$link = $entry->link();
+		$rs = $relevanceScore !== null ? (string) $relevanceScore : '-';
+		$usageStr = self::formatLlmUsageTokens($usage);
+		$extra = ($extraBeforeSummary !== null && $extraBeforeSummary !== '') ? ' ' . $extraBeforeSummary : '';
+		$sum = ' summary=-';
+		if ($summarySnippet !== null && trim($summarySnippet) !== '') {
+			$sum = ' summary="' . self::escapeLogTitleForQuotes(mb_substr(preg_replace('/\s+/u', ' ', $summarySnippet) ?? '', 0, 200, 'UTF-8')) . '"';
+		}
+		$err = '';
+		if ($errorCode !== null && $errorCode !== '') {
+			$msg = ($errorMessage !== null && $errorMessage !== '') ? ' ' . self::logSnippet($errorMessage, 400) : '';
+			$err = ' [error: ' . $errorCode . $msg . ']';
+		}
+
+		return 'ContentEnhancement: ' . $action . ' ' . $decision
+			. ' title="' . $title . '"'
+			. ' link=' . $link
+			. ' relevance_score=' . $rs
+			. ' latency_ms=' . $latencyMs
+			. ' model=' . $model
+			. ' ' . $usageStr
+			. $extra
+			. $sum
+			. $err;
+	}
+
+	private static function escapeLogTitleForQuotes(string $title): string
+	{
+		$t = trim($title);
+		if ($t === '') {
+			return '(no title)';
+		}
+		$t = mb_substr($t, 0, 80, 'UTF-8') . (mb_strlen($title, 'UTF-8') > 80 ? '…' : '');
+		return str_replace(['\\', '"'], ['\\\\', '\\"'], $t);
+	}
+
+	/**
+	 * Always emits prompt/completion/total (use `-` when unknown); optional cached=.
+	 *
+	 * @param array<string,int>|null $usage
+	 */
+	private static function formatLlmUsageTokens(?array $usage): string
+	{
+		if ($usage === null || $usage === []) {
+			return 'llm_tokens prompt=- completion=- total=-';
+		}
+		$prompt = isset($usage['prompt_tokens']) ? (string) (int) $usage['prompt_tokens'] : '-';
+		$completion = isset($usage['completion_tokens']) ? (string) (int) $usage['completion_tokens'] : '-';
+		$total = isset($usage['total_tokens']) ? (string) (int) $usage['total_tokens'] : '-';
+		$out = 'llm_tokens prompt=' . $prompt . ' completion=' . $completion . ' total=' . $total;
+		if (isset($usage['cached_content_tokens'])) {
+			$out .= ' cached=' . (int) $usage['cached_content_tokens'];
+		}
+
+		return $out;
 	}
 
 	/**
@@ -1031,9 +1379,248 @@ TXT;
 	}
 
 	/**
+	 * Title + RSS snippet only (no fetch). Returns JSON with relevance_score 1–10.
+	 *
+	 * @return array{relevance_score?:int,_llm_usage?:array<string,int>}|null
+	 */
+	private static function callLlmRelevancePrefilter(
+		string $apiBase,
+		string $apiKey,
+		string $model,
+		string $title,
+		string $rssPlain,
+		string $prefilterSystemPrompt,
+	): ?array {
+		self::$lastLlmFailureDetail = '';
+		$system = $prefilterSystemPrompt;
+		if (self::isGeminiGenerateContentUrl($apiBase)) {
+			return self::callGeminiRelevancePrefilter($apiBase, $apiKey, $system, $title, $rssPlain);
+		}
+
+		return self::callOpenAiRelevancePrefilter($apiBase, $apiKey, $model, $system, $title, $rssPlain);
+	}
+
+	/**
+	 * @return array{relevance_score?:int}|null
+	 */
+	private static function parsePrefilterJsonFromLlmText(string $content): ?array
+	{
+		$content = self::stripLeakedAssistantReasoning($content);
+		$json = json_decode($content, true);
+		if (is_array($json) && isset($json['relevance_score'])) {
+			return $json;
+		}
+		$fenced = self::tryParsePrefilterJsonFromMarkdownFences($content);
+		if ($fenced !== null) {
+			return $fenced;
+		}
+		foreach (self::extractBalancedJsonObjects($content) as $blob) {
+			$j = json_decode($blob, true);
+			if (is_array($j) && isset($j['relevance_score'])) {
+				return $j;
+			}
+		}
+		self::$lastLlmFailureDetail = 'prefilter_json_missing_relevance_score: ' . self::logSnippet($content, 600);
+
+		return null;
+	}
+
+	/** @return array{relevance_score?:int}|null */
+	private static function tryParsePrefilterJsonFromMarkdownFences(string $content): ?array
+	{
+		if (preg_match_all('/```(?:json)?\s*([\s\S]*?)```/u', $content, $matches) === 0 || empty($matches[1])) {
+			return null;
+		}
+		$last = null;
+		foreach ($matches[1] as $inner) {
+			$inner = trim((string) $inner);
+			if ($inner === '') {
+				continue;
+			}
+			$j = json_decode($inner, true);
+			if (is_array($j) && isset($j['relevance_score'])) {
+				$last = $j;
+			}
+		}
+
+		return $last;
+	}
+
+	/**
+	 * @return array{relevance_score?:int,_llm_usage?:array<string,int>}|null
+	 */
+	private static function callGeminiRelevancePrefilter(
+		string $generateContentUrl,
+		string $apiKey,
+		string $systemPrompt,
+		string $title,
+		string $rssPlain,
+	): ?array {
+		$key = self::normalizeApiKey($apiKey);
+		$url = trim($generateContentUrl);
+		$generationConfig = [
+			'temperature' => 0.3,
+			'responseMimeType' => 'application/json',
+			'maxOutputTokens' => 256,
+		];
+		$thinkingOff = self::geminiThinkingOffConfig($url);
+		if ($thinkingOff !== []) {
+			$generationConfig['thinkingConfig'] = $thinkingOff;
+		}
+		$userText = '标题：' . $title . "\n\nRSS摘要或片段：\n" . ($rssPlain !== '' ? $rssPlain : '（无摘要，仅标题。）');
+		$payload = [
+			'systemInstruction' => [
+				'parts' => [['text' => $systemPrompt]],
+			],
+			'contents' => [
+				[
+					'role' => 'user',
+					'parts' => [['text' => $userText]],
+				],
+			],
+			'generationConfig' => $generationConfig,
+		];
+		$r = self::postGeminiGenerateContent($url, $key, $payload);
+		if (!$r['ok']) {
+			self::$lastLlmFailureDetail = $r['reason'];
+
+			return null;
+		}
+		$raw = $r['body'];
+		$decoded = json_decode($raw, true);
+		if (!is_array($decoded)) {
+			self::$lastLlmFailureDetail = 'response_body_not_json: ' . self::logSnippet($raw, 600);
+
+			return null;
+		}
+		if (isset($decoded['error'])) {
+			$err = $decoded['error'];
+			$msg = is_array($err) ? (string) ($err['message'] ?? json_encode($err, JSON_UNESCAPED_UNICODE)) : (string) $err;
+			self::$lastLlmFailureDetail = 'gemini_error: ' . self::logSnippet($msg, 500);
+
+			return null;
+		}
+		$candidates = $decoded['candidates'] ?? null;
+		if (!is_array($candidates) || $candidates === []) {
+			$pb = $decoded['promptFeedback'] ?? null;
+			$block = is_array($pb) ? ($pb['blockReason'] ?? null) : null;
+			$extra = $block !== null && $block !== '' ? ' blockReason=' . (string) $block : '';
+			self::$lastLlmFailureDetail = 'no_candidates' . $extra . ': ' . self::logSnippet($raw, 600);
+
+			return null;
+		}
+		$finish = $candidates[0]['finishReason'] ?? '';
+		if (is_string($finish) && ($finish === 'SAFETY' || $finish === 'BLOCKLIST' || $finish === 'PROHIBITED_CONTENT')) {
+			self::$lastLlmFailureDetail = 'finishReason=' . $finish . ': ' . self::logSnippet($raw, 400);
+
+			return null;
+		}
+		$parts = $candidates[0]['content']['parts'] ?? null;
+		if (!is_array($parts) || $parts === []) {
+			self::$lastLlmFailureDetail = 'no_content_parts: ' . self::logSnippet($raw, 600);
+
+			return null;
+		}
+		$text = '';
+		foreach ($parts as $p) {
+			if (is_array($p) && isset($p['text']) && is_string($p['text'])) {
+				$text .= $p['text'];
+			}
+		}
+		if ($text === '') {
+			self::$lastLlmFailureDetail = 'empty_text_parts: ' . self::logSnippet($raw, 600);
+
+			return null;
+		}
+		$parsed = self::parsePrefilterJsonFromLlmText($text);
+		if ($parsed === null) {
+			return null;
+		}
+		$usage = self::usageFromGeminiDecoded($decoded);
+		if ($usage !== null) {
+			$parsed['_llm_usage'] = $usage;
+		}
+
+		return $parsed;
+	}
+
+	/**
+	 * Prefilter via OpenAI-compatible API (no MiniMax json_schema branch — schema targets full article JSON).
+	 *
+	 * @return array{relevance_score?:int,_llm_usage?:array<string,int>}|null
+	 */
+	private static function callOpenAiRelevancePrefilter(
+		string $apiBase,
+		string $apiKey,
+		string $model,
+		string $systemPrompt,
+		string $title,
+		string $rssPlain,
+	): ?array {
+		self::$lastLlmFailureDetail = '';
+		$url = rtrim($apiBase, '/') . '/chat/completions';
+		$userText = "标题：" . $title . "\n\nRSS摘要或片段：\n" . ($rssPlain !== '' ? $rssPlain : '（无摘要，仅标题。）');
+		$basePayload = [
+			'model' => $model,
+			'messages' => [
+				['role' => 'system', 'content' => $systemPrompt],
+				['role' => 'user', 'content' => $userText],
+			],
+			'temperature' => 0.3,
+			'max_tokens' => 256,
+		];
+		if (stripos($apiBase, 'minimax') !== false) {
+			$basePayload['reasoning_split'] = true;
+		}
+
+		$failReasons = [];
+		$raw = null;
+
+		$r1 = self::postChatCompletion($url, $apiKey, array_merge($basePayload, [
+			'response_format' => ['type' => 'json_object'],
+		]));
+		if ($r1['ok']) {
+			$raw = $r1['body'];
+		} else {
+			$failReasons[] = 'json_object: ' . $r1['reason'];
+			$r2 = self::postChatCompletion($url, $apiKey, $basePayload);
+			if (!$r2['ok']) {
+				$failReasons[] = 'plain: ' . $r2['reason'];
+				self::$lastLlmFailureDetail = implode('; ', $failReasons);
+
+				return null;
+			}
+			$raw = $r2['body'];
+		}
+
+		$decoded = json_decode($raw, true);
+		if (!is_array($decoded)) {
+			self::$lastLlmFailureDetail = 'response_body_not_json: ' . self::logSnippet($raw, 600);
+
+			return null;
+		}
+		$content = $decoded['choices'][0]['message']['content'] ?? '';
+		if (!is_string($content)) {
+			self::$lastLlmFailureDetail = 'choices[0].message.content_not_string: ' . self::logSnippet(json_encode($decoded['choices'][0] ?? null, JSON_UNESCAPED_UNICODE), 500);
+
+			return null;
+		}
+		$parsed = self::parsePrefilterJsonFromLlmText($content);
+		if ($parsed === null) {
+			return null;
+		}
+		$usage = self::usageFromOpenAiDecoded($decoded);
+		if ($usage !== null) {
+			$parsed['_llm_usage'] = $usage;
+		}
+
+		return $parsed;
+	}
+
+	/**
 	 * Gemini `generateContent` URL (full path) or OpenAI-style `/v1` base for `/chat/completions`.
 	 *
-	 * @return array{summary_zh?:string,quality_score?:int,labels?:array}|null
+	 * @return array{summary_zh?:string,relevance_score?:int,quality_score?:int,labels?:array}|null
 	 */
 	public static function callLlm(
 		string $apiBase,
@@ -1087,7 +1674,7 @@ TXT;
 	/**
 	 * OpenAI-compatible Chat Completions (DeepSeek, Ollama `/v1`, MiniMax, …).
 	 *
-	 * @return array{summary_zh?:string,quality_score?:int,labels?:array}|null
+	 * @return array{summary_zh?:string,relevance_score?:int,quality_score?:int,labels?:array}|null
 	 */
 	public static function callOpenAiCompatibleChat(
 		string $apiBase,
@@ -1170,7 +1757,7 @@ TXT;
 	/**
 	 * Google Gemini REST {@see https://ai.google.dev/api/rest/v1beta/models.generateContent} (and proxies).
 	 *
-	 * @return array{summary_zh?:string,quality_score?:int,labels?:array}|null
+	 * @return array{summary_zh?:string,relevance_score?:int,quality_score?:int,labels?:array}|null
 	 */
 	private static function callGeminiGenerateContent(
 		string $generateContentUrl,
@@ -1259,22 +1846,22 @@ TXT;
 	}
 
 	/**
-	 * @return array{summary_zh?:string,quality_score?:int,labels?:array}|null
+	 * @return array{summary_zh?:string,relevance_score?:int,quality_score?:int,labels?:array}|null
 	 */
 	private static function parseAssistantJsonFromLlmText(string $content): ?array
 	{
 		$content = self::stripLeakedAssistantReasoning($content);
 		$json = json_decode($content, true);
 		if (is_array($json) && isset($json['summary_zh'])) {
-			return $json;
+			return self::normalizeFullPassAssistantJson($json);
 		}
 		$fenced = self::tryParseJsonFromMarkdownFences($content);
 		if ($fenced !== null) {
-			return $fenced;
+			return self::normalizeFullPassAssistantJson($fenced);
 		}
 		$loose = self::parseLooseAssistantJson($content);
 		if ($loose !== null) {
-			return $loose;
+			return self::normalizeFullPassAssistantJson($loose);
 		}
 		self::$lastLlmFailureDetail = 'assistant_content_not_json: ' . self::logSnippet($content, 600);
 		return null;
@@ -1318,7 +1905,7 @@ TXT;
 	/**
 	 * Extract all top-level `{...}` spans with brace depth (string-aware) and pick the best candidate.
 	 *
-	 * @return array{summary_zh?:string,quality_score?:int,labels?:array}|null
+	 * @return array{summary_zh?:string,relevance_score?:int,quality_score?:int,labels?:array}|null
 	 */
 	private static function parseLooseAssistantJson(string $content): ?array
 	{
@@ -1349,8 +1936,12 @@ TXT;
 		if ($t === self::SCHEMA_PLACEHOLDER_SUMMARY) {
 			return true;
 		}
-		// New/legacy example lines models sometimes echo verbatim
-		return $t === '（约100–150字，据正文独立撰写）' || $t === '（约100-150字，据正文独立撰写）';
+		// Legacy Chinese example lines models sometimes echo verbatim
+		if ($t === '（约100–150字，据正文独立撰写）' || $t === '（约100-150字，据正文独立撰写）') {
+			return true;
+		}
+		// English schema hint from {@see JSON_SCHEMA_HINT}
+		return $t === '(~100–150 Chinese characters, independent summary from the body)' || $t === '(~100-150 Chinese characters, independent summary from the body)';
 	}
 
 	/** Model sometimes uses literal "..." or Unicode ellipsis as summary placeholder. */
@@ -1363,7 +1954,7 @@ TXT;
 	/**
 	 * Prefer fenced JSON blocks — often the only valid JSON after English/Chinese reasoning text.
 	 *
-	 * @return array{summary_zh?:string,quality_score?:int,labels?:array}|null
+	 * @return array{summary_zh?:string,relevance_score?:int,quality_score?:int,labels?:array}|null
 	 */
 	private static function tryParseJsonFromMarkdownFences(string $content): ?array
 	{
@@ -1473,7 +2064,7 @@ TXT;
 			'type' => 'json_schema',
 			'json_schema' => [
 				'name' => 'content_enhancement',
-				'description' => 'Strict quality: scores 1–3 for propaganda/learning fluff with no new facts; 4–5 thin; 6–7 ordinary; 8–10 high-value news only.',
+				'description' => 'relevance_score: 1–10 combines objective news value and subjective reader interest (customize via system prompt).',
 				'schema' => [
 					'type' => 'object',
 					'properties' => [
@@ -1481,9 +2072,9 @@ TXT;
 							'type' => 'string',
 							'description' => '约100–150字中文摘要，据正文独立撰写。',
 						],
-						'quality_score' => [
+						'relevance_score' => [
 							'type' => 'integer',
-							'description' => '1–10 strict scale: 1–3 hollow propaganda/learning pieces with no factual news value; 4–5 weak; 6–7 moderate; 8–10 strong journalism. Learning-card titles with no new facts must be ≤3.',
+							'description' => '1–10: low for propaganda/no new facts; higher for strong journalism and for topics the reader cares about (per prompt).',
 						],
 						'labels' => [
 							'type' => 'array',
@@ -1491,7 +2082,7 @@ TXT;
 							'description' => 'Advertisement, Propaganda, Clickbait, Low Quality. Use Propaganda+Low Quality for slogan-heavy content with no news value.',
 						],
 					],
-					'required' => ['summary_zh', 'quality_score', 'labels'],
+					'required' => ['summary_zh', 'relevance_score', 'labels'],
 				],
 			],
 		];
@@ -1534,35 +2125,6 @@ TXT;
 		unset($llm['_llm_usage']);
 
 		return $u;
-	}
-
-	/**
-	 * Gemini {@see https://ai.google.dev/api/generate-content#UsageMetadata} and OpenAI-style usage as one log suffix.
-	 *
-	 * @param array<string,int>|null $usage
-	 */
-	private static function formatLlmUsageForLog(?array $usage): string
-	{
-		if ($usage === null || $usage === []) {
-			return '';
-		}
-		$parts = [];
-		foreach (['prompt_tokens', 'completion_tokens', 'total_tokens', 'cached_content_tokens'] as $k) {
-			if (!isset($usage[$k])) {
-				continue;
-			}
-			$v = (int) $usage[$k];
-			$short = match ($k) {
-				'prompt_tokens' => 'prompt',
-				'completion_tokens' => 'completion',
-				'total_tokens' => 'total',
-				'cached_content_tokens' => 'cached',
-				default => $k,
-			};
-			$parts[] = $short . '=' . $v;
-		}
-
-		return $parts !== [] ? ' llm_tokens ' . implode(' ', $parts) : '';
 	}
 
 	/**
