@@ -15,6 +15,7 @@ I am building a FreshRSS plugin to process incoming RSS entries (specifically su
      - Generate a concise summary (approx. 100-150 words in Chinese).
      - Assign a **relevance_score** (1–10): combines objective information value and subjective interest (tune via system prompt).
      - Detect specific categories: "Advertisement", "Propaganda", "Clickbait", "Low Quality".
+     - **Label storage:** Freeform labels are normalized to lowercase ASCII letters only (spaces/punctuation stripped). Internal tags `_lowquality`, `_highquality`, `_propaganda`, `_ads`, `_antirobots` are kept verbatim. The extension adds `_lowquality` when `relevance_score` ≤ 3 and `_highquality` when ≥ 9.
    - **Response Format:** Expect a structured JSON response.
 4. **Data Enrichment:** 
    - Replace the original entry summary/content with the LLM-generated summary.
@@ -61,6 +62,8 @@ The extension skeleton lives under **`xExtension-ContentEnhancement/`**:
 ### Local testing (Windows)
 
 **Recommended: Docker** — PHP, Apache, and FreshRSS run inside the official image; your extension folder is bind-mounted so edits apply immediately (restart not usually required for PHP file changes).
+
+**GFW / egress proxy:** Container outbound traffic is configured to use a **SOCKS5 proxy on the host at port 1080** (e.g. `ssh -D 1080`). Start that tunnel first, then Docker — see **[LOCAL-GFW-BYPASS.md](./LOCAL-GFW-BYPASS.md)** for the full checklist and troubleshooting.
 
 1. Install [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) and ensure it is running.
 2. From this directory run:

@@ -209,6 +209,7 @@ systemctl --user restart openclaw-gateway.service
 | [`scripts/enable-minimax-token-plan.sh`](./scripts/enable-minimax-token-plan.sh) | Enable MiniMax plugin + restart gateway; then `openclaw configure --section model` or skipped `onboard` (§1.3) |
 | [`scripts/provision-openclaw-user.sh`](./scripts/provision-openclaw-user.sh) | Server user provisioning (if used) |
 | [`scripts/dump_openclaw_memory_sqlite.py`](./scripts/dump_openclaw_memory_sqlite.py) | Inspect memory DB (optional tooling) |
+| [`scripts/deploy-feed-filter-rubric-skill.ps1`](./scripts/deploy-feed-filter-rubric-skill.ps1) | `scp` **feed-filter-rubric-prompt** skill to `~/.openclaw/workspace/skills/` on the gateway ([§11](#11-feed-filter-rubric-prompt-skill-from-this-repo)) |
 
 ---
 
@@ -295,7 +296,24 @@ Tencent’s **微信** plugin for OpenClaw (scan QR to log in). Docs: [npm READM
 
 ---
 
-## 11. Changelog
+## 11. Feed filter rubric prompt skill (from this repo)
+
+Custom skill for updating the **`system_prompt`** that controls feed filtering / relevance rubric (**GET → edit JSON → POST** via `contentenhancement_config_get.py` / `contentenhancement_config_post.py`). Not from ClawHub — **deployed by `scp`** from the workstation. Legacy path **`freshrss-contentenhancement-scoring`** is removed on deploy.
+
+| Item | Value |
+|------|--------|
+| **Path on gateway** | `~/.openclaw/workspace/skills/feed-filter-rubric-prompt/` |
+| **Source in repo** | [`skills/feed-filter-rubric-prompt/`](./skills/feed-filter-rubric-prompt/) |
+| **Deploy (Windows)** | [`scripts/deploy-feed-filter-rubric-skill.ps1`](./scripts/deploy-feed-filter-rubric-skill.ps1) — requires `openclaw-hetzner-ed25519` |
+| **`FRESHRSS_BASE`** | Default in scripts is `http://localhost:8080`. On the gateway, use **`http://127.0.0.1:8080`** when an SSH tunnel maps local **8080** (or **8081** → **8080**) to FreshRSS; see [`config/freshrss/docker-compose.yml`](./config/freshrss/docker-compose.yml) / tunnel scripts. |
+
+**After deploy:** `systemctl --user restart openclaw-gateway.service` if the skill list does not refresh (same pattern as §9 Outlook).
+
+**Remove:** `rm -rf ~/.openclaw/workspace/skills/feed-filter-rubric-prompt`
+
+---
+
+## 12. Changelog
 
 | Date (UTC) | Change |
 |------------|--------|
@@ -310,3 +328,4 @@ Tencent’s **微信** plugin for OpenClaw (scan QR to log in). Docs: [npm READM
 | 2026-03-29 | **Daily news cron:** isolated jobs were ignoring `daily_news_aggregation` SKILL layout (newsletter style, `/tmp` footnote from old prompt). Fix: **embed the full Markdown contract + forbidden patterns in `scripts/daily-news-cron-message.txt`** and `openclaw cron edit … --message "$(cat …)"` — payload is authoritative; remove “save to `/tmp`” from the delivered instruction. |
 | 2026-03-29 | **MiniMax Token Plan:** §1.3 OAuth via `minimax-global-oauth` or `minimax-cn-oauth` (not `minimax-portal`); [`scripts/enable-minimax-token-plan.sh`](./scripts/enable-minimax-token-plan.sh); [platform](https://platform.minimax.io/docs/token-plan/openclaw), [OpenClaw MiniMax](https://docs.openclaw.ai/providers/minimax). |
 | 2026-03-29 | **MiniMax without full onboarding:** `openclaw configure --section model` or `onboard --auth-choice minimax-*-oauth` with `--skip-channels --skip-skills --skip-ui --skip-health --skip-search --skip-daemon`; §1.3. |
+| 2026-03-30 | **feed-filter-rubric-prompt** skill (rename from `freshrss-contentenhancement-scoring`): [`skills/feed-filter-rubric-prompt/`](./skills/feed-filter-rubric-prompt/), deploy [`scripts/deploy-feed-filter-rubric-skill.ps1`](./scripts/deploy-feed-filter-rubric-skill.ps1); §11. |

@@ -2,7 +2,7 @@
 	"name": "ContentEnhancement",
 	"author": "Your Name",
 	"description": "Fetch article text, summarize with an LLM (JSON relevance_score + summary), enrich entry attributes, optional relevance filter. See readme in repo.",
-	"version": "0.1.0",
+	"version": "0.1.2",
 	"entrypoint": "ContentEnhancement",
 	"type": "system"
 }

@@ -5,8 +5,8 @@
 #
 # Image via dockerproxy.net (Docker Hub mirror) — avoids direct registry-1.docker.io pulls.
 #
-# Egress via host SOCKS5 (local dev only): socks5://host.docker.internal:1080 — not 127.0.0.1 (that is inside the container).
-# If DNS resolution fails for blocked sites, try socks5h://… (resolve names through the proxy).
+# Egress via host SOCKS5 (local dev only): socks5h://host.docker.internal:1080 — not 127.0.0.1 (that is inside the container).
+# ../config/freshrss/apache-proxy-passenv.conf: Apache PassEnv so PHP getenv() sees the proxy (mod_php).
 
 services:
   freshrss:
@@ -20,12 +20,13 @@ services:
     volumes:
       - freshrss_data:/var/www/FreshRSS/data
       - ./xExtension-ContentEnhancement:/var/www/FreshRSS/extensions/xExtension-ContentEnhancement
+      - ../config/freshrss/apache-proxy-passenv.conf:/etc/apache2/conf-enabled/freshrss-proxy-passenv.conf:ro
     environment:
       TZ: UTC
       CRON_MIN: "5,35"
-      ALL_PROXY: socks5://host.docker.internal:1080
-      HTTP_PROXY: socks5://host.docker.internal:1080
-      HTTPS_PROXY: socks5://host.docker.internal:1080
+      ALL_PROXY: socks5h://host.docker.internal:1080
+      HTTP_PROXY: socks5h://host.docker.internal:1080
+      HTTPS_PROXY: socks5h://host.docker.internal:1080
       NO_PROXY: localhost,127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16
 
 volumes:

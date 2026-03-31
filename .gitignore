@@ -26,10 +26,14 @@ Thumbs.db
 desktop.ini
 
 # Editor / IDE
+.cursor/
 .idea/
 *.swp
 *.swo
 *~
+
+# FreshRSS configure script session (local dev)
+**/freshrss_configure.cookies
 
 # Logs and temp
 *.log

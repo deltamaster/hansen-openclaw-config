@@ -1,0 +1,109 @@
+URL
+
+http://localhost:8080/i/?c=extension&a=configure&e=ContentEnhancement
+
+GET Method
+
+Response
+
+<div class="post">
+	<h2>
+		ContentEnhancement (0.1.0) —
+		Enabled	</h2>
+
+	<p class="alert alert-warn">Fetch article text, summarize with an LLM (JSON relevance_score + summary), enrich entry attributes, optional relevance filter. See readme in repo. — By: Your Name</p>
+
+		<form id="form-extension" method="post">
+		<input type="hidden" name="_csrf" value="2a4e695e8e2aeb896b85266c75b4be3a3f19ab0bfe7293e80b9f42e7d5163567" />
+		<div class="form-group form-actions">
+			<div class="group-controls">
+				<button class="btn btn-attention confirm" form="form-extension" formaction="./?c=extension&amp;a=remove&amp;e=ContentEnhancement">Remove</button>
+			</div>
+		</div>
+	</form>
+	
+	<h2>Manage</h2>
+	<form action="./?c=extension&amp;a=configure&amp;e=ContentEnhancement" method="post">
+	<input type="hidden" name="_csrf" value="2a4e695e8e2aeb896b85266c75b4be3a3f19ab0bfe7293e80b9f42e7d5163567" />
+	<div class="form-group">
+		<label class="group-name" for="enabled">Enabled</label>
+		<input type="hidden" name="enabled" value="0" />
+		<input type="checkbox" name="enabled" id="enabled" value="1" checked="checked" />
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="api_base">API URL</label>
+		<input class="long" type="url" name="api_base" id="api_base" value="https://jp-gw2.azure-api.net/gemini/models/gemini-2.5-flash-lite:generateContent"
+			placeholder="https://…/models/…:generateContent or https://api.openai.com/v1" required />
+		<p class="help"><strong>Gemini:</strong> full <code>…:generateContent</code> URL (Google REST). <strong>OpenAI-style:</strong> <code>/v1</code> base; the extension calls <code>/v1/chat/completions</code> (MiniMax, OpenAI, DeepSeek, Ollama, …).</p>
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="api_key">API key</label>
+		<input class="long" type="password" name="api_key" id="api_key" value="" placeholder="Leave blank to keep existing key" autocomplete="off" />
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="model">Model</label>
+		<input class="long" type="text" name="model" id="model" value="gemini-2.5-flash-lite"
+			placeholder="gemini-3.1-flash-lite-preview" />
+		<p class="help">Required for OpenAI-style endpoints. For a full Gemini <code>generateContent</code> URL, optional (used for logs; the URL already names the model).</p>
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="min_quality">Minimum relevance score (1–10)</label>
+		<input type="number" name="min_quality" id="min_quality" min="1" max="10" value="5" />
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="prefilter_before_fetch">Prefilter (title + RSS only, before fetch)</label>
+		<input type="hidden" name="prefilter_before_fetch" value="0" />
+		<input type="checkbox" name="prefilter_before_fetch" id="prefilter_before_fetch" value="1" checked="checked" />
+		<p class="help">Cheap pass on title + RSS only (no fetch). Fixed English prefilter instructions in code + your scoring criteria below. If <code>relevance_score</code> is strictly below <code>min_quality − 1</code>, skips fetch and full enhancement: with “Discard below threshold” on, the entry is not inserted; otherwise the raw RSS item is kept. On prefilter API failure, falls back to the full pipeline.</p>
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="mark_low_quality_read">Mark below threshold as read</label>
+		<input type="hidden" name="mark_low_quality_read" value="0" />
+		<input type="checkbox" name="mark_low_quality_read" id="mark_low_quality_read" value="1"  />
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="discard_below_threshold">Discard entry (do not insert) if below threshold</label>
+		<input type="hidden" name="discard_below_threshold" value="0" />
+		<input type="checkbox" name="discard_below_threshold" id="discard_below_threshold" value="1" checked="checked" />
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="apply_freshrss_labels">Apply LLM labels as FreshRSS user labels</label>
+		<input type="hidden" name="apply_freshrss_labels" value="0" />
+		<input type="checkbox" name="apply_freshrss_labels" id="apply_freshrss_labels" value="1" checked="checked" />
+		<p class="help">Creates labels (if needed) and tags each article with the model’s <code>labels</code> (e.g. Propaganda, Low Quality) when the article is first shown. You do not need to pre-create labels.</p>
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="system_prompt">Scoring criteria (shared)</label>
+		<textarea name="system_prompt" id="system_prompt" rows="10" class="w100">你是新闻与阅读**相关性**评估助手：输出字段 **relevance_score**（1–10）表示该条对读者的**综合相关度**。请把「客观信息价值 / 稿件质量」与「主观上是否值得读」放在**同一分数**里：低信息密度的通稿、宣传口号稿打低分；对你认为读者会关心、信息清晰或话题重要的条目打高分。可在系统说明或用户后续自定义规则里补充个人偏好（例如不感兴趣的话题打低分）。必须**严格**打分：宣传稿、无新事实的通稿通常 **1–3**，并打上 Propaganda / Low Quality（若适用）。
+
+【relevance_score 校准（必须遵守）】
+- **1–3**：几乎无独立新闻价值或对你设定的读者几乎不值得读，或者用户明确不关注的话题。典型：意识形态学习/表态稿；无新事实、无新数据的通稿；仅复述会议精神、政策口号；官样活动报道无实质信息。
+- **4–5**：信息稀薄、明显片面，或宣传为主但夹杂少量可核实信息；或话题边缘、兴趣低。
+- **6–7**：有可核实的事件要素或一定阅读价值，但深度或吸引力一般。
+- **8–9**：事实清楚，有数据、背景、多方信息或明确新闻点；或高度符合读者兴趣。
+- **10**：极少使用；深度调查、重大独家、高信息密度或对你定义的读者极具相关性的报道。
+
+【低分强制规则】若标题或正文明显属于「学习」「领会」「政绩观教育」等套话类，且**没有**可独立核实的事实增量，则 relevance_score **不得高于 3**，且 labels 应包含 **Propaganda** 与 **Low Quality**。
+
+【labels】仅从以下选项中选确实匹配的（可多项）：Advertisement、Propaganda、Clickbait、Low Quality。空洞口号、无营养学习稿应标 **Propaganda** 与 **Low Quality**。
+
+【我感兴趣的内容】科技（尤其是互联网，计算机，软件，AI领域），金融，地缘政治，宏观经济，宏观政策（尤其是涉及金融和科技监管的领域），上海本地新闻，旅行相关，城市建设游戏，美食，Goldman Sachs，Morgan Stanley
+【我不感兴趣的内容】竞技体育，除中美以外的本地新闻，时尚美妆，中国官员违纪违法问题</textarea>
+		<p class="help">Defines relevance_score bands, low-score rules, and label meanings. Appended after fixed English structure instructions (prefilter and full-scan are built into the extension). Clear and Submit to restore the default scoring text.</p>
+	</div>
+
+	<div class="form-group form-actions">
+		<button type="submit" class="btn btn-important">Submit</button>
+		<button type="reset" class="btn">Reset</button>
+	</div>
+</form>
+</div>

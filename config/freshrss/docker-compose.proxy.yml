@@ -1,13 +1,16 @@
 # Optional merge: route container outbound HTTP(S) through a SOCKS proxy on the host (e.g. local port forward).
 # Usage: docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d
-# Requires a SOCKS listener on the host at 1080 (e.g. ssh -D 1080). Use socks5h:// if hostname resolution must go through the proxy.
+# Requires a SOCKS listener on the host at 1080 (e.g. ssh -D 1080).
+# socks5h: resolve hostnames via the proxy (use socks5:// if the host must resolve names itself).
 
 services:
   freshrss:
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - ./apache-proxy-passenv.conf:/etc/apache2/conf-enabled/freshrss-proxy-passenv.conf:ro
     environment:
-      ALL_PROXY: socks5://host.docker.internal:1080
-      HTTP_PROXY: socks5://host.docker.internal:1080
-      HTTPS_PROXY: socks5://host.docker.internal:1080
+      ALL_PROXY: socks5h://host.docker.internal:1080
+      HTTP_PROXY: socks5h://host.docker.internal:1080
+      HTTPS_PROXY: socks5h://host.docker.internal:1080
       NO_PROXY: localhost,127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16

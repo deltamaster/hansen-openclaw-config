@@ -24,4 +24,5 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host ""
 Write-Host "Open http://127.0.0.1:8081/ — complete the installer (SQLite is fine)." -ForegroundColor Green
 Write-Host "Then: Administration > System extensions > enable ContentEnhancement > configure." -ForegroundColor Green
+Write-Host "GFW bypass: start SOCKS on host port 1080 (e.g. ssh -D 1080) — see LOCAL-GFW-BYPASS.md" -ForegroundColor DarkGray
 Write-Host "Stop: docker compose down" -ForegroundColor Gray

@@ -24,6 +24,8 @@ final class ContentEnhancementExtension extends Minz_Extension
 		$this->registerHook('entry_before_insert', [$this, 'onEntryBeforeInsert']);
 		// Runs once per feed on every refresh — unlike entry_before_insert, which only runs when there are new/updated articles.
 		$this->registerHook('feed_before_actualize', [$this, 'onFeedBeforeActualize']);
+		// After SimplePie HTTP+parse (see {@see Minz_HookType::SimplepieAfterInit}); use to diagnose missing entry_before_insert.
+		$this->registerHook('simplepie_after_init', [$this, 'onSimplepieAfterInit']);
 		// After `_entrytmp` → `_entry` commit, ids are final; apply LLM labels to user labels (tags).
 		$this->registerHook('entry_before_display', [$this, 'onEntryBeforeDisplay']);
 	}
@@ -34,6 +36,10 @@ final class ContentEnhancementExtension extends Minz_Extension
 	 * Slow `entry_before_insert` (LLM) can hit `max_execution_time`, so the request exits before that commit:
 	 * you get `ContentEnhancement: ok` in the log but articles stay in `entrytmp` and never appear in the UI.
 	 * Committing at the start of each feed flushes pending tmp from earlier feeds in the same run or from a crashed previous run.
+	 *
+	 * Important: this hook runs **before** FreshRSS acquires the per-feed lock and **before** {@see FreshRSS_Feed::load()}.
+	 * If you see this line but never {@see self::onSimplepieAfterInit()} or `entry_before_insert`, check the main log for
+	 * `Feed already being actualized` (lock), or fetch errors after {@see self::onSimplepieAfterInit()}.
 	 */
 	public function onFeedBeforeActualize(FreshRSS_Feed $feed): ?FreshRSS_Feed
 	{
@@ -54,6 +60,38 @@ final class ContentEnhancementExtension extends Minz_Extension
 			$feed->url(false),
 		));
 		return $feed;
+	}
+
+	/**
+	 * Fires after SimplePie `init()` for this feed URL (HTTP fetch + parse). Does not run if {@see FreshRSS_Feed::load()}
+	 * returns early (e.g. lock lost before load — then this hook is never reached).
+	 *
+	 * @param FreshRSS_SimplePieCustom $simplePie
+	 */
+	public function onSimplepieAfterInit($simplePie, FreshRSS_Feed $feed, bool $result): void
+	{
+		if (!$this->getSystemConfigurationValue('enabled')) {
+			return;
+		}
+		if (!$result) {
+			$code = method_exists($simplePie, 'status_code') ? (int) $simplePie->status_code() : 0;
+			Minz_Log::warning(sprintf(
+				'ContentEnhancement: simplepie_after_init init=false feed_id=%d http=%d url=%s',
+				$feed->id(),
+				$code,
+				$feed->url(false),
+			));
+			return;
+		}
+		$err = $simplePie->error();
+		if ($err !== null && $err !== '' && $err !== []) {
+			$msg = is_array($err) ? json_encode($err, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : (string) $err;
+			Minz_Log::warning(sprintf(
+				'ContentEnhancement: simplepie_after_init simplepie error feed_id=%d: %s',
+				$feed->id(),
+				$msg,
+			));
+		}
 	}
 
 	/**
