@@ -39,6 +39,12 @@ if ($applyFreshRssLabels === null) {
 	</div>
 
 	<div class="form-group">
+		<label class="group-name" for="high_quality_threshold">High-quality label threshold (1–10)</label>
+		<input type="number" name="high_quality_threshold" id="high_quality_threshold" min="1" max="10" value="<?= (int) $this->getSystemConfigurationValue('high_quality_threshold', 9) ?>" />
+		<p class="help">Articles with <code>relevance_score</code> ≥ this value receive the internal tag <code>_highquality</code> (when labels are applied). Default 9 matches the previous fixed behavior.</p>
+	</div>
+
+	<div class="form-group">
 		<label class="group-name" for="prefilter_before_fetch">Prefilter (title + RSS only, before fetch)</label>
 		<input type="hidden" name="prefilter_before_fetch" value="0" />
 		<input type="checkbox" name="prefilter_before_fetch" id="prefilter_before_fetch" value="1" <?= ($this->getSystemConfigurationValue('prefilter_before_fetch') ?? true) ? 'checked="checked"' : '' ?> />

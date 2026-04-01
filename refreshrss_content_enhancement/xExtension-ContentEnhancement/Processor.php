@@ -137,6 +137,10 @@ final class ContentEnhancement_Processor
 		$key = self::normalizeApiKey((string) $ext->getSystemConfigurationValue('api_key'));
 		$model = (string) $ext->getSystemConfigurationValue('model');
 		$minQ = (int) $ext->getSystemConfigurationValue('min_quality');
+		$highQualityThreshold = (int) $ext->getSystemConfigurationValue('high_quality_threshold', 9);
+		if ($highQualityThreshold < 1 || $highQualityThreshold > 10) {
+			$highQualityThreshold = 9;
+		}
 		$markRead = (bool) $ext->getSystemConfigurationValue('mark_low_quality_read');
 		$discard = (bool) $ext->getSystemConfigurationValue('discard_below_threshold');
 		$scoring = self::normalizeScoringCriteria((string) $ext->getSystemConfigurationValue('system_prompt', ''));
@@ -276,7 +280,7 @@ final class ContentEnhancement_Processor
 			if ($http === 401 || $http === 403) {
 				$latency = (int) round((microtime(true) - $t0) * 1000);
 				$score = $prefilterRel !== null ? max(1, min(10, $prefilterRel)) : 5;
-				$labels = self::normalizeLabelsForStorage([self::LABEL_ROBOTS_DISCOURAGED], $score);
+				$labels = self::normalizeLabelsForStorage([self::LABEL_ROBOTS_DISCOURAGED], $score, $highQualityThreshold);
 				self::setMeta($entry, [
 					'status' => 'ok',
 					'source_url' => $resolved,
@@ -421,7 +425,7 @@ final class ContentEnhancement_Processor
 		if (!is_array($labels)) {
 			$labels = [];
 		}
-		$labels = self::normalizeLabelsForStorage(array_map('strval', $labels), $score);
+		$labels = self::normalizeLabelsForStorage(array_map('strval', $labels), $score, $highQualityThreshold);
 
 		// Replace visible article content with LLM summary (HTML fragment).
 		$entry->_content('<p>' . htmlspecialchars($summary, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>');
@@ -586,12 +590,12 @@ final class ContentEnhancement_Processor
 
 	/**
 	 * Freeform LLM labels → lowercase Latin letters only (non-letters removed). Internal tags stay exact.
-	 * Adds `_lowquality` when relevance_score ≤ 3 and `_highquality` when relevance_score ≥ 9.
+	 * Adds `_lowquality` when relevance_score ≤ 3 and `_highquality` when relevance_score ≥ the configured threshold.
 	 *
 	 * @param array<int,mixed> $labels
 	 * @return list<string>
 	 */
-	private static function normalizeLabelsForStorage(array $labels, int $relevanceScore): array
+	private static function normalizeLabelsForStorage(array $labels, int $relevanceScore, int $highQualityThreshold): array
 	{
 		$internalSet = array_fill_keys(self::INTERNAL_LABELS, true);
 		$out = [];
@@ -615,7 +619,7 @@ final class ContentEnhancement_Processor
 				$out[] = '_lowquality';
 			}
 		}
-		if ($relevanceScore >= 9) {
+		if ($relevanceScore >= $highQualityThreshold) {
 			if (!in_array('_highquality', $out, true)) {
 				$out[] = '_highquality';
 			}
