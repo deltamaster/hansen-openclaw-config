@@ -13,7 +13,7 @@ This document records **customizations applied to the OpenClaw gateway** (Hetzne
 | Main config | `~/.openclaw/openclaw.json` |
 | Agent auth (API keys) | `~/.openclaw/agents/main/agent/auth-profiles.json` |
 | Global OpenClaw install | `/usr/lib/node_modules/openclaw/` |
-| Gateway (user systemd) | `systemctl --user openclaw-gateway.service` |
+| Gateway (user systemd) | `systemctl --user openclaw-gateway.service` — on **178.104.115.113** a drop-in sets **`TimeoutStopSec=120`** (`~/.config/systemd/user/openclaw-gateway.service.d/override.conf`) so deferred restarts (e.g. after `plugins.allow` edits) can shut down without hitting the stock 30s cap when Telegram I/O lags. See [OPENCLAW-DEPLOYMENT.md](./OPENCLAW-DEPLOYMENT.md) (operational + recovery) if the unit is **failed** or **inactive**. |
 | Workspace | `~/.openclaw/workspace` (per `agents.defaults.workspace`) |
 | Plugins (npm / extensions) | `~/.openclaw/extensions/<plugin-id>/` |
 

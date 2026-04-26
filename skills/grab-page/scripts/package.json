@@ -1,0 +1,8 @@
+{
+  "name": "grab-page",
+  "version": "1.0.0",
+  "description": "Fetch web pages with Playwright stealth",
+  "dependencies": {
+    "playwright": "^1.59.0"
+  }
+}

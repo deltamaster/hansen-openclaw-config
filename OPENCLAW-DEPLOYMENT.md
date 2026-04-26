@@ -8,9 +8,9 @@ Deployment tracked against [OPENCLAW-HETZNER-ENV.md](./OPENCLAW-HETZNER-ENV.md).
 
 | Item | Result |
 |------|--------|
-| **OpenClaw (CLI)** | `2026.3.24` (`cff6dc9`) — `/usr/bin/openclaw` |
-| **Node.js** | `v24.13.0` (NodeSource `node_24.x` apt repo) |
-| **npm** | `11.6.2` |
+| **OpenClaw (CLI)** | `2026.4.24` (`cbcfdf6`) — `/usr/bin/openclaw` (upgrade with `sudo npm install -g openclaw@latest`) |
+| **Node.js** | `v24.14.1` (NodeSource `node_24.x` apt repo) |
+| **npm** | `11.11.0` |
 | **Install method** | `sudo npm install -g openclaw@latest` |
 | **Onboarding** | Non-interactive; `--auth-choice skip` (no LLM API keys stored in this run) |
 | **Gateway** | **Active** — `systemctl --user openclaw-gateway.service` **enabled**, **running** |
@@ -97,6 +97,15 @@ journalctl --user -u openclaw-gateway.service -f
 # Health
 openclaw doctor
 ```
+
+**If Telegram (or other channels) suddenly go quiet** while the VM is up, check `systemctl --user is-active openclaw-gateway.service`. The unit can end **inactive** or **failed** after a **deferred full restart** (e.g. editing `plugins.allow` or other settings that require a gateway restart). OpenClaw waits until in-flight work (including long cron/agent runs) finishes, then stops the process. A **short** `TimeoutStopSec` (30s in the stock unit) can make shutdown hit “shutdown timed out; exiting without full cleanup” if Telegram calls hang during teardown, leaving the service in **failed** with **no automatic start**. Recovery:
+
+```bash
+systemctl --user reset-failed openclaw-gateway.service
+systemctl --user start openclaw-gateway.service
+```
+
+A **user drop-in** on this host raises the stop timeout so graceful shutdown can finish: `~/.config/systemd/user/openclaw-gateway.service.d/override.conf` with `TimeoutStopSec=120`.
 
 ---
 
@@ -192,6 +201,30 @@ Codes expire in about **1 hour**. For groups, add the bot to the group and confi
 
 ---
 
+## Feishu (飞书) / Lark
+
+Official guide: **[Feishu / Lark](https://docs.openclaw.ai/zh-CN/channels/feishu)** (English index: [Feishu](https://docs.openclaw.ai/channels/feishu)). The docs ask for **OpenClaw 2026.4.25+**; **npm** `latest` may be one patch behind (e.g. **2026.4.24**); that is the highest version installable from the registry until a newer build ships.
+
+1. **Allow and enable the plugin** (gateway as `openclaw` — include any existing `plugins.allow` entries; example matches this host):
+
+   ```bash
+   openclaw config set plugins.allow '["openclaw-weixin","telegram","minimax","google","deepseek","memory-core","feishu"]' --strict-json
+   openclaw plugins enable feishu
+   systemctl --user restart openclaw-gateway.service
+   ```
+
+2. **Link the bot (interactive, QR in terminal):** use a TTY so the wizard can run (`-t`):
+
+   ```powershell
+   ssh -t -i "i:\workspace\hetzner-env\openclaw-hetzner-ed25519" openclaw@178.104.115.113 "openclaw channels login --channel feishu"
+   ```
+
+3. **Restart** after the wizard finishes (or use `openclaw gateway restart` on the host per the docs).
+
+4. **Pairing (DMs):** `openclaw pairing list feishu` / `openclaw pairing approve feishu <CODE>` as in the [doc](https://docs.openclaw.ai/zh-CN/channels/feishu#访问控制).
+
+---
+
 ## References
 
 - [openclaw/openclaw](https://github.com/openclaw/openclaw) — upstream repo  
@@ -199,6 +232,7 @@ Codes expire in about **1 hour**. For groups, add the bot to the group and confi
 - [Onboarding (CLI)](https://docs.openclaw.ai/start/wizard) — wizard overview  
 - [CLI automation](https://docs.openclaw.ai/start/wizard-cli-automation) — `--non-interactive` examples  
 - [Telegram](https://docs.openclaw.ai/channels/telegram) — bot token, pairing, groups  
+- [Feishu / Lark (中文)](https://docs.openclaw.ai/zh-CN/channels/feishu) — `channels login`, pairing, groups  
 
 ---
 
@@ -209,3 +243,5 @@ Codes expire in about **1 hour**. For groups, add the bot to the group and confi
 | 2026-03-28 | Node 24 + global `openclaw@latest`, non-interactive onboard with auth skipped, systemd user gateway enabled and verified on loopback. |
 | 2026-03-28 | Reverted experimental public-port / iptables DNAT for 18791; docs aligned with [Remote access](https://docs.openclaw.ai/gateway/remote) (SSH tunnel to loopback). |
 | 2026-03-28 | Telegram integration steps + [`scripts/configure-telegram.sh`](./scripts/configure-telegram.sh) per [Telegram](https://docs.openclaw.ai/channels/telegram) (requires BotFather token on host). |
+| 2026-04-26 | Document recovery when `openclaw-gateway` is inactive/failed after deferred restart; on host `178.104.115.113` add user systemd drop-in `TimeoutStopSec=120` for graceful stop under Telegram load. |
+| 2026-04-26 | Upgraded global OpenClaw to **2026.4.24**; added **`feishu`** to `plugins.allow` and documented Feishu/Lark channel steps ([zh doc](https://docs.openclaw.ai/zh-CN/channels/feishu)). |

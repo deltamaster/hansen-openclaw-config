@@ -18,8 +18,11 @@ final class ContentEnhancement_Processor
 	 */
 	private const LABEL_ROBOTS_DISCOURAGED = '_antirobots';
 
+	/** Applied on every {@see process()} path that stores enriched metadata with {@see normalizeLabelsForStorage()}. */
+	private const LABEL_PROCESSED = '_processed';
+
 	/** Exact names preserved by {@see normalizeLabelsForStorage()} (not stripped to lowercase a–z). */
-	private const INTERNAL_LABELS = ['_lowquality', '_highquality', '_propaganda', '_ads', '_antirobots'];
+	private const INTERNAL_LABELS = ['_lowquality', '_highquality', '_propaganda', '_ads', '_antirobots', '_processed'];
 
 	/** Set when {@see callLlm} returns null; included in `llm_failed` logs. */
 	private static string $lastLlmFailureDetail = '';
@@ -623,6 +626,9 @@ final class ContentEnhancement_Processor
 			if (!in_array('_highquality', $out, true)) {
 				$out[] = '_highquality';
 			}
+		}
+		if (!in_array(self::LABEL_PROCESSED, $out, true)) {
+			$out[] = self::LABEL_PROCESSED;
 		}
 
 		return $out;
