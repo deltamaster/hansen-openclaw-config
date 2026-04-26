@@ -1,9 +1,38 @@
 #!/usr/bin/env python3
 """Reminder management CLI with one-shot cron per reminder"""
-import sqlite3, sys, os, datetime, pytz, subprocess, json
+import sqlite3, sys, os, json, datetime, pytz, subprocess
 
 DB = os.path.expanduser('~/.openclaw/workspace/data/reminders.db')
 CHINA_TZ = pytz.timezone('Asia/Shanghai')
+_MAX_PAYLOAD_PREVIEW = 4000
+
+
+def _slim_cron_job(job: dict) -> dict:
+    """Omit or truncate very large fields; keep what an LLM needs to match DB rows."""
+    if not isinstance(job, dict):
+        return job
+    out = {k: v for k, v in job.items() if k in (
+        "id", "name", "enabled", "description", "deleteAfterRun", "agentId",
+        "sessionTarget", "wakeMode", "createdAtMs", "updatedAtMs", "delivery",
+    )}
+    p = job.get("payload")
+    if isinstance(p, dict):
+        msg = p.get("message", "")
+        if isinstance(msg, str) and len(msg) > _MAX_PAYLOAD_PREVIEW:
+            msg = msg[:_MAX_PAYLOAD_PREVIEW] + "…(truncated)"
+        out["payload"] = {
+            "kind": p.get("kind"),
+            "model": p.get("model"),
+            "timeoutSeconds": p.get("timeoutSeconds"),
+            "message": msg,
+        }
+    out["schedule"] = job.get("schedule")
+    st = job.get("state")
+    if isinstance(st, dict):
+        out["state"] = {k: st.get(k) for k in (
+            "nextRunAtMs", "lastRunAtMs", "lastStatus", "lastError",
+        ) if st.get(k) is not None}
+    return out
 
 def get_conn():
     conn = sqlite3.connect(DB)
@@ -222,6 +251,63 @@ def cmd_delete(id):
     print('Deleted id=' + id)
     conn.close()
 
+
+def cmd_maintain():
+    """
+    Emit one JSON line for the hourly reconcile job: reminders.db + openclaw cron list.
+    No auto-delete. LLM (from the OpenClaw maintenance cron message) reconciles the two.
+    """
+    init_db()
+    now_ts = int(datetime.datetime.now(CHINA_TZ).timestamp())
+    when = datetime.datetime.now(CHINA_TZ).strftime("%Y-%m-%d %H:%M %Z")
+    conn = get_conn()
+    out_rows = []
+    for r in conn.execute("SELECT * FROM reminders ORDER BY id").fetchall():
+        d = {k: r[k] for k in r.keys()}
+        d["event_local"] = ts_to_str(r["event_timestamp"])
+        d["in_future"] = r["event_timestamp"] >= now_ts
+        out_rows.append(d)
+    conn.close()
+
+    crons = None
+    cron_err = None
+    result = subprocess.run(
+        ["openclaw", "cron", "list", "--json"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        try:
+            data = json.loads(result.stdout)
+            if isinstance(data, list):
+                crons = {"jobs": [_slim_cron_job(j) for j in data if isinstance(j, dict)]}
+            elif isinstance(data, dict):
+                data = dict(data)
+                if "jobs" in data and isinstance(data["jobs"], list):
+                    data["jobs"] = [_slim_cron_job(j) for j in data["jobs"] if isinstance(j, dict)]
+                crons = data
+            else:
+                crons = data
+        except (json.JSONDecodeError, TypeError) as e:
+            cron_err = "json_parse: " + str(e) + " | stdout_head: " + result.stdout[:500]
+    else:
+        cron_err = (result.stderr or "empty_stdout")[:800]
+
+    report = {
+        "generated_at_local": when,
+        "reminders_path": os.path.expanduser("~/.openclaw/workspace/data/reminders.db"),
+        "reminders": out_rows,
+        "openclaw_cron_list": crons,
+        "openclaw_cron_list_error": cron_err,
+        "hint": "One-shot reminder jobs are often named 'Reminder {id}' matching reminders.id. " +
+        "Stability test / other ad-hoc jobs may exist only in openclaw. Use `openclaw cron delete <uuid>` and " +
+        "`python3 " + os.path.expanduser("~/.openclaw/workspace/skills/reminder/scripts/reminder.py") + " delete <id>` " +
+        "only after you decide; do not guess IDs.",
+    }
+    print("REMINDER_RECONCILE_REPORT " + json.dumps(report, ensure_ascii=False))
+
+
 if __name__ == '__main__':
     init_db()
     if len(sys.argv) < 2:
@@ -239,3 +325,5 @@ if __name__ == '__main__':
             print('Usage: reminder.py delete <id>')
         else:
             cmd_delete(sys.argv[2])
+    elif sys.argv[1] == 'maintain':
+        cmd_maintain()

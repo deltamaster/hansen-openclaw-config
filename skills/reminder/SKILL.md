@@ -31,6 +31,9 @@ python3 reminder.py delete 1
 
 # Check for due reminders (used by cron)
 python3 reminder.py check
+
+# Reconcile report (hourly OpenClaw cron + manual): prints one JSON line `REMINDER_RECONCILE_REPORT {…}` with **all** `reminders.db` rows plus **`openclaw cron list --json`** (jobs slimmed: long payloads truncated). No automatic deletes. The maintenance agent compares both sources and uses `reminder.py delete` / `openclaw cron delete` as it sees fit. Message contract: [`scripts/reminder-maintenance-cron-message.txt`](../../scripts/reminder-maintenance-cron-message.txt).
+python3 reminder.py maintain
 ```
 
 ## Fields
@@ -53,6 +56,8 @@ A cron job runs every 15 minutes (minimax model) that:
 3. If none due → replies HEARTBEAT_OK
 
 **Morning digest (07:30 Asia/Shanghai, Telegram):** OpenClaw scheduled job calls `reminder.py digest` and posts the result to Telegram (same delivery pattern as the daily news cron). Register on the gateway from this repo: `python3 scripts/register-reminder-morning-cron.py` (after copying `scripts/reminder-morning-cron-message.txt` next to the register script; message body also lives in [`scripts/reminder-morning-cron-message.txt`](../../scripts/reminder-morning-cron-message.txt)).
+
+**Hourly maintenance (OpenClaw, no Telegram):** the agent runs `reminder.py maintain` to get the **two-source** report, then reconciles (optional deletes). Register / refresh message: [`scripts/register-reminder-maintenance-cron.py`](../../scripts/register-reminder-maintenance-cron.py), [`apply-reminder-maintenance-cron-message.py`](../../scripts/apply-reminder-maintenance-cron-message.py) (edit existing job), and [`reminder-maintenance-cron-message.txt`](../../scripts/reminder-maintenance-cron-message.txt). Model `minimax/MiniMax-M2.7`, `--light-context`, `--thinking low`, `--no-deliver`, `0 * * * *` `Asia/Shanghai`, timeout 300s.
 
 ## Workflow: Add Reminder
 

@@ -1,0 +1,16 @@
+CRON: reminder **reconcile** — two sources of truth: (1) SQLite `reminders.db` rows, (2) OpenClaw scheduled jobs from `openclaw cron list`. Programmatic dedupe is unreliable; **you** judge overlap, orphans, and expired items.
+
+**Step 1 — fetch the combined report** (one line; stdout is one JSON object after the prefix):
+```bash
+python3 /home/openclaw/.openclaw/workspace/skills/reminder/scripts/reminder.py maintain
+```
+The line begins with `REMINDER_RECONCILE_REPORT` followed by JSON with keys: `reminders`, `openclaw_cron_list` (includes `jobs`, often `deliveryPreviews`), `hint`, `openclaw_cron_list_error` if list failed.
+
+**Step 2 — decide** which DB rows and which OpenClaw jobs are duplicates, obsolete, or wrong channel. One-shot reminder jobs are often named `Reminder {id}` where `{id}` is the **reminders.id** from when `reminder.py add` ran. The same trip can still exist as **two** OpenClaw jobs (e.g. Reminder 5 and Reminder 18) with different UUIDs.
+
+**Step 3 — act** using tools / exec (only what you are sure about):
+- Remove a **DB** row: `python3 /home/openclaw/.openclaw/workspace/skills/reminder/scripts/reminder.py delete <id>`
+- Remove an **OpenClaw** job: `openclaw cron delete <job-uuid>`
+If a row still has `cron_id`, deleting the row via `reminder.py delete` cancels that linked cron when applicable; **orphan** OpenClaw-only jobs need `openclaw cron delete`.
+
+**Step 4 — final message** short summary: what you removed, what you left, anything uncertain for Hansen. No Telegram (this job has no delivery).
