@@ -22,6 +22,10 @@ python3 reminder.py list all
 # List pending (future) reminders
 python3 reminder.py list pending
 
+# Upcoming events digest (default: next 30 days) — for morning Telegram cron
+python3 reminder.py digest
+python3 reminder.py digest --days=14
+
 # Delete a reminder
 python3 reminder.py delete 1
 
@@ -48,14 +52,20 @@ A cron job runs every 15 minutes (minimax model) that:
 2. If reminders are due → sends to WeChat (微信) via `openclaw message send`
 3. If none due → replies HEARTBEAT_OK
 
+**Morning digest (07:30 Asia/Shanghai, Telegram):** OpenClaw scheduled job calls `reminder.py digest` and posts the result to Telegram (same delivery pattern as the daily news cron). Register on the gateway from this repo: `python3 scripts/register-reminder-morning-cron.py` (after copying `scripts/reminder-morning-cron-message.txt` next to the register script; message body also lives in [`scripts/reminder-morning-cron-message.txt`](../../scripts/reminder-morning-cron-message.txt)).
+
 ## Workflow: Add Reminder
 
 **⚠️ STEP 1: THINK BEFORE RECORDING**
 
 Before adding any reminder, ask yourself:
 1. **What TYPE of event is this?** (train / flight / hotel check-in / meeting / appointment / other)
-2. **What KEY INFORMATION do I need to see when this reminder fires?**
-3. **What FORMAT will be clearest at a glance?**
+2. **When do I need to take an action? Decide the lead time appropriately. Set multiple reminders when I need to take multiple actions at different times. Ask for information if necessary, e.g.:**
+   1. From where will I set off if I need to travel physically to the venue?
+   2. What should I prepare before I attend a meeting?
+   3. Who is the contact person if there is any?
+3. **What KEY INFORMATION do I need to see in order to take the action when this reminder fires?**
+4. **What FORMAT will be clearest at a glance?**
 
 **事件类型决定提醒格式：**
 
@@ -94,6 +104,7 @@ When adding train or flight reminders, you MUST extract and include ALL of the f
 - "北海→南宁" vs "北海→南宁东" are DIFFERENT destinations!
 - D3926 goes to 南宁站, D368 goes to 南宁东站
 - Always confirm: departure station AND arrival station separately
+- Where will the user be before the event? How long does it take for the user to travel to the venue?
 
 **Reminder message format:**
 ```

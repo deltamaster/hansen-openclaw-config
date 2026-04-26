@@ -64,6 +64,9 @@ def create_one_shot_cron(reminder_id, trigger_ts, title, description, location):
         '--delete-after-run',
         '--session', 'isolated',
         '--timeout-seconds', '60',
+        '--model', 'minimax/MiniMax-M2.7',
+        '--light-context',
+        '--thinking', 'off',
         '--message', msg
     ], capture_output=True, text=True, timeout=30)
     if result.returncode != 0:
@@ -146,6 +149,49 @@ def cmd_list(args):
             print('         cron: ' + r['cron_id'])
     conn.close()
 
+def cmd_digest(args):
+    """Print upcoming events for a morning / digest view (default: next 30 days, Asia/Shanghai)."""
+    init_db()
+    now_ts = int(datetime.datetime.now(CHINA_TZ).timestamp())
+    max_days = 30
+    for a in args:
+        if a.startswith('--days='):
+            try:
+                max_days = int(a.split('=', 1)[1].strip())
+            except (ValueError, IndexError):
+                pass
+    max_ts = now_ts + max(1, min(max_days, 365)) * 86400
+    conn = get_conn()
+    c = conn.execute(
+        "SELECT * FROM reminders WHERE is_active=1 AND event_timestamp>=? AND event_timestamp<=? "
+        "ORDER BY event_timestamp",
+        (now_ts, max_ts),
+    )
+    rows = c.fetchall()
+    conn.close()
+    d = datetime.datetime.now(CHINA_TZ).strftime("%Y-%m-%d")
+    if not rows:
+        print("No upcoming reminders in the next " + str(max_days) + " days. (As of " + d + " Asia/Shanghai.)")
+        return
+    out = [
+        "",
+        "### Upcoming reminders — " + d + " (Asia/Shanghai, next " + str(max_days) + " days)",
+        "",
+    ]
+    for r in rows:
+        evt = ts_to_str(r["event_timestamp"])
+        trig = ts_to_str(r["event_timestamp"] - r["lead_minutes"] * 60)
+        line1 = "• **" + evt + "** — " + (r["title"] or "Untitled")
+        out.append(line1)
+        if r["description"]:
+            out.append("  " + (r["description"] or "").replace("\n", " ").strip()[:500])
+        if r["location"]:
+            out.append("  📍 " + (r["location"] or ""))
+        out.append("  _Alert fires: " + trig + " (T-" + str(r["lead_minutes"]) + "m)_")
+        out.append("")
+    print("\n".join(out).strip())
+
+
 def cmd_check():
     init_db()
     conn = get_conn()
@@ -186,6 +232,8 @@ if __name__ == '__main__':
         cmd_list(sys.argv[2:])
     elif sys.argv[1] == 'check':
         cmd_check()
+    elif sys.argv[1] == 'digest':
+        cmd_digest(sys.argv[2:])
     elif sys.argv[1] == 'delete':
         if len(sys.argv) < 3:
             print('Usage: reminder.py delete <id>')

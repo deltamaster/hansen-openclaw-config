@@ -1,0 +1,11 @@
+CRON: morning reminder digest — read the reminder database and send **only** the digest text to this chat. **No** greeting, **no** code fences around the whole message, **no** extra commentary.
+
+**Step 1 — run exactly this command** (one line):
+
+```bash
+python3 /home/openclaw/.openclaw/workspace/skills/reminder/scripts/reminder.py digest
+```
+
+**Step 2 — delivery:** your **entire** final message must be the **raw stdout** of that command, unmodified. If the output is one line (e.g. "No upcoming reminders..."), send exactly that. If the command fails, send a single line: `Error: ` plus stderr. Do not summarize. Do not translate unless the command output is empty.
+
+**Invalid:** a reply that is not the command output; adding “Here are your reminders:”; omitting an event from stdout.
