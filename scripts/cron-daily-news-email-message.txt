@@ -2,4 +2,4 @@ Scheduled job: daily personalized news brief (email disabled).
 
 Use the **same** Markdown contract and pipeline as the Telegram cron payload on the gateway (`/tmp/daily-news-cron-message.txt` after deploy, or `scripts/daily-news-cron-message.txt` in the repo): self-contained instructions, no `/tmp` footnotes in the delivered text, no greetings/emojis/themed sections — only **Focus today** + **Deep dive — top 3** (four bullets each) + **Also interesting** + optional **Gaps**.
 
-Do **not** send email or run `send-daily-news-email.sh`. Deliver the full brief in the cron announce channel only.
+Do **not** send email or run `skills/daily-news-aggregation/scripts/send-daily-news-email.sh` (or the repo forwarding script `scripts/send-daily-news-email.sh`). Deliver the full brief in the cron announce channel only.
